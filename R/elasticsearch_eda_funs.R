@@ -1,15 +1,12 @@
 
 #' @title Examine the distribution of distinct values for a field in Elasticsearch
 #' @name get_counts
-#' @description For a given field, return a data table with its unique values in a time range.
+#' @description For a given field, return a data.table with its unique values in a time range.
 #' @importFrom data.table := data.table setnames setkeyv
-#' @importFrom httr content POST
+#' @importFrom httr content RETRY
 #' @importFrom purrr transpose
 #' @export
 #' @param field A valid field in whatever Elasticsearch index you are querying
-#' @param es_host A string identifying an Elasticsearch host. This should be of the form 
-#'        \code{[transfer_protocol][hostname]:[port]}. For example, \code{'http://myindex.thing.com:9200'}.
-#' @param es_index The name of an Elasticsearch index to be queried.
 #' @param start_date A character Elasticsearch date-time, indicating the earliest
 #'        date from which to show documents. Default is \code{"now-1w"}.
 #' @param end_date A character Elasticsearch date-time, indicating the most recent
@@ -23,6 +20,7 @@
 #'        }
 #' @param max_terms What is the maximum number of unique terms to return? Many production
 #'                  Elasticsearch deployments limit this to a small number by default. Default here is 1000.
+#' @inheritParams doc_shared
 #' @examples
 #' \dontrun{
 #' # Count number of customers by payment method
@@ -67,7 +65,7 @@ get_counts <- function(field
     
     #===== Build search URL =====#
     searchURL  <- paste0(es_host, "/", es_index, "/_search?size=0")
-    result     <- httr::POST(url = searchURL, body = aggsQuery)
+    result     <- httr::RETRY(verb = "POST", url = searchURL, body = aggsQuery)
     counts     <- httr::content(result, as = "parsed")[["aggregations"]][[field]][["buckets"]]
     
     #===== Get data =====#
@@ -95,7 +93,7 @@ get_counts <- function(field
         {"missing": {"field": "', field, '"}}]}}}}}')
     
     # Get result
-    result      <- httr::POST(url = searchURL, body = missingQuery)
+    result      <- httr::RETRY(verb = "POST", url = searchURL, body = missingQuery)
     numMissings <- httr::content(result, as = "parsed")[["hits"]][["total"]]
     
     # Return now if user asked to only see NAs if there are any
@@ -103,7 +101,7 @@ get_counts <- function(field
         return(resultDT)
     }
     
-    # Append count of NAs to the data table
+    # Append count of NAs to the data.table
     naDT <- data.table::data.table(keyval = NA, count = numMissings)
     
     # Reformat
@@ -118,16 +116,13 @@ get_counts <- function(field
 #' @name get_fields
 #' @description For a given Elasticsearch index, return the mapping from field name
 #'              to data type for all indexed fields.
-#' @importFrom futile.logger flog.fatal flog.info
 #' @importFrom httr GET content stop_for_status
 #' @importFrom data.table := uniqueN
-#' @param es_host A string identifying an Elasticsearch host. This should be of
-#'                the form \code{[transfer_protocol][hostname]:[port]}. For example,
-#'                \code{'http://myindex.thing.com:9200'}.
 #' @param es_indices A character vector that contains the names of indices for
 #'                   which to get mappings. Default is \code{'_all'}, which means
 #'                   get the mapping for all indices. Names of indices can be
 #'                   treated as regular expressions.
+#' @inheritParams doc_shared
 #' @export
 #' @return A data.table containing four columns: index, type, field, and data_type
 #' @examples \dontrun{
@@ -153,12 +148,11 @@ get_fields <- function(es_host
         msg <- paste("get_fields must be passed a valid es_indices."
                      , "You provided", paste(es_indices, collapse = ', ')
                      , 'which resulted in an empty string')
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
     ########################## make the query ################################
-    futile.logger::flog.info(paste('Getting indexed fields for indices:', indices))
+    log_info(paste('Getting indexed fields for indices:', indices))
     
     result <- httr::GET(url = url)
     httr::stop_for_status(result)
@@ -178,12 +172,12 @@ get_fields <- function(es_host
     # log some information about this request to the user
     numFields <- nrow(mappingDT)
     numIndex <- mappingDT[, data.table::uniqueN(index)]
-    futile.logger::flog.info(paste('Retrieved', numFields, 'fields across', numIndex, 'indices'))
+    log_info(paste('Retrieved', numFields, 'fields across', numIndex, 'indices'))
     
     return(mappingDT)
 }
 
-# [title] Flatten a mapping list of field name to data type into a data table
+# [title] Flatten a mapping list of field name to data type into a data.table
 # [mapping] A list of json that is returned from a request to the mappings API
 #' @importFrom data.table := data.table setnames
 #' @importFrom stringr str_detect str_split_fixed str_replace_all
@@ -198,10 +192,10 @@ get_fields <- function(es_host
     # into three distinct parts
     mappingCols <- stringr::str_split_fixed(names(flattened), '\\.(mappings|properties)\\.', n = 3)
     
-    # convert to data table and add the data type column
+    # convert to data.table and add the data type column
     mappingDT <- data.table::data.table(meta = mappingCols, data_type = as.character(flattened))
     newColNames <- c('index', 'type', 'field', 'data_type')
-    data.table::setnames(mappingDT, old = names(mappingDT), new = newColNames)
+    data.table::setnames(mappingDT, newColNames)
     
     # remove any rows, where the field does not end in ".type" to remove meta info
     mappingDT <- mappingDT[stringr::str_detect(field, '\\.type$')]
@@ -236,7 +230,7 @@ get_fields <- function(es_host
     }
 }
 
-# [title] Process the string returned by the GET alias API into a data table
+# [title] Process the string returned by the GET alias API into a data.table
 # [alias_string] A string returned by the alias API with index and alias name
 #' @importFrom data.table data.table
 #' @importFrom utils read.table

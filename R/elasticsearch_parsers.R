@@ -9,7 +9,6 @@
 #'              This is a side-effect-free function: it returns a new data.table and the
 #'              input data.table is unmodified.
 #' @importFrom data.table copy
-#' @importFrom futile.logger flog.fatal
 #' @importFrom purrr map2 simplify
 #' @importFrom stringr str_extract
 #' @export
@@ -46,8 +45,7 @@ parse_date_time <- function(input_df
                      , "You provided an object of class"
                      , paste(class(input_df), collapse = ", ")
                      , "to input_df.")
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
     # Break if date_cols is not a character vector
@@ -55,8 +53,7 @@ parse_date_time <- function(input_df
         msg <- paste("The date_cols argument in parse_date_time expects",
                      "a character vector of column names. You gave an object",
                      "of class", paste(class(date_cols), collapse = ", "))
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
     # Break if any of the date_cols are not actually in this DT
@@ -65,8 +62,7 @@ parse_date_time <- function(input_df
         msg <- paste("The following columns, which you passed to date_cols,",
                      "do not actually exist in input_df:",
                      paste(not_there, collapse = ", "))
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
     # Work on a copy of the DT to avoid side effects
@@ -133,7 +129,6 @@ parse_date_time <- function(input_df
 #' @name chomp_aggs
 #' @description Given some raw JSON from an aggs query in Elasticsearch, parse the
 #'              aggregations into a data.table.
-#' @importFrom futile.logger flog.warn flog.fatal
 #' @importFrom jsonlite fromJSON
 #' @importFrom data.table as.data.table setnames setcolorder
 #' @export
@@ -158,16 +153,14 @@ chomp_aggs <- function(aggs_json = NULL) {
     # If nothing was passed to aggs_json, return NULL and warn
     if (is.null(aggs_json)) {
         msg <- "You did not pass any input data to chomp_aggs. Returning NULL."
-        futile.logger::flog.warn(msg)
-        warning(msg)
+        log_warn(msg)
         return(NULL)
     }
     
     if (!("character" %in% class(aggs_json))) {
         msg <- paste0("The first argument of chomp_aggs must be a character vector."
                       , "You may have passed an R list. Try querying with uptasticsearch:::.search_request()")
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
     # Parse the input JSON to a list object
@@ -178,7 +171,7 @@ chomp_aggs <- function(aggs_json = NULL) {
     
     # Gross special-case handler for one-level extended_stats aggregation
     if (.IsExtendedStatsAgg(jsonList[["aggregations"]][[aggNames]])){
-        futile.logger::flog.info("es_search is assuming that this result is a one-level 'extended_stats' result.")
+        log_info("es_search is assuming that this result is a one-level 'extended_stats' result.")
         jsonList[["aggregations"]][[1]][["std_deviation_bounds.upper"]] <- jsonList[["aggregations"]][[1]][["std_deviation_bounds"]][["upper"]]
         jsonList[["aggregations"]][[1]][["std_deviation_bounds.lower"]] <- jsonList[["aggregations"]][[1]][["std_deviation_bounds"]][["lower"]]
         jsonList[["aggregations"]][[1]][["std_deviation_bounds"]] <- NULL
@@ -186,7 +179,7 @@ chomp_aggs <- function(aggs_json = NULL) {
     
     # Gross special-case handler for one-level percentiles aggregation
     if (.IsPercentilesAgg(jsonList[["aggregations"]][[aggNames]])){
-        futile.logger::flog.info("es_search is assuming that this result is a one-level 'percentiles' result.")
+        log_info("es_search is assuming that this result is a one-level 'percentiles' result.")
         
         # Replace names like `25.0` with something that will be easier for users to understand
         # Doing this changes column names like thing.values.25.0 to thing.percentile_25.0
@@ -196,7 +189,7 @@ chomp_aggs <- function(aggs_json = NULL) {
     }
     
     if (.IsSigTermsAgg(jsonList[["aggregations"]][[aggNames]])){
-        futile.logger::flog.info("es_search is assuming that this result is a one-level 'significant terms' result.")
+        log_info("es_search is assuming that this result is a one-level 'significant terms' result.")
         
         # We can grab that nested data.frame and break out right now
         outDT <- data.table::as.data.table(jsonList[["aggregations"]][[aggNames]][["buckets"]])
@@ -225,7 +218,7 @@ chomp_aggs <- function(aggs_json = NULL) {
                 # If we get down here, we know it's not a bucketed aggregation
                 # So we want to take like "count", "min", "max" and change them to 
                 # e.g. "some_field.count", "some_field.min", "some_field.max"
-                data.table::setnames(outDT, names(outDT), paste0(aggNames, ".", names(outDT)))
+                data.table::setnames(outDT, paste0(aggNames, ".", names(outDT)))
             }
         }
         
@@ -349,7 +342,7 @@ chomp_aggs <- function(aggs_json = NULL) {
 #'   This is a side-effect-free function: it returns a new data.table and the
 #'   input data.table is unmodified.
 #' @importFrom data.table copy as.data.table rbindlist setnames
-#' @importFrom futile.logger flog.fatal
+#' @importFrom purrr map_if map_lgl map_int
 #' @export
 #' @param chomped_df a data.table
 #' @param col_to_unpack a character vector of length one: the column name to 
@@ -378,70 +371,78 @@ chomp_aggs <- function(aggs_json = NULL) {
 #' unpackedDT <- unpack_nested_data(chomped_df = sampleChompedDT
 #'                                  , col_to_unpack = "details.pastPurchases")
 #' print(unpackedDT)
-unpack_nested_data <- function(chomped_df, col_to_unpack) {
+unpack_nested_data <- function(chomped_df, col_to_unpack)  {
     
     # Input checks
     if (!("data.table" %in% class(chomped_df))) {
         msg <- "For unpack_nested_data, chomped_df must be a data.table"
-        futile.logger::flog.fatal(msg)
-        stop(msg)
-    }
-    if (".id" %in% names(chomped_df)) {
-        msg <- "For unpack_nested_data, chomped_df cannot have a column named '.id'"
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     if (!("character" %in% class(col_to_unpack)) || length(col_to_unpack) != 1) {
         msg <- "For unpack_nested_data, col_to_unpack must be a character of length 1"
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     if (!(col_to_unpack %in% names(chomped_df))) {
         msg <- "For unpack_nested_data, col_to_unpack must be one of the column names"
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
-    # Avoid side effects
-    outDT <- data.table::copy(chomped_df)
+    inDT <- data.table::copy(chomped_df)
     
-    # Get the column to unpack
-    listDT <- outDT[[col_to_unpack]]
+    # Define a column name to store original row ID
+    joinCol <- uuid::UUIDgenerate()
+    inDT[, (joinCol) := .I]
     
-    # Make each row a data.table
-    listDT <- lapply(listDT, data.table::as.data.table)
+    # Take out the packed column
+    listDT <- inDT[[col_to_unpack]]
+    inDT[, (col_to_unpack) := NULL]
     
-    # Remove the empty ones... important, due to data.table 1.10.4 bug
-    oldIDs <- which(sapply(listDT, nrow) != 0)
-    listDT <- listDT[oldIDs]
-    
-    # Bind them together with an ID to match to the other data
-    newDT <- data.table::rbindlist(listDT, fill = TRUE, idcol = TRUE)
-    
-    # If we tried to unpack an empty column, fail
-    if (nrow(newDT) == 0) {
+    # Check for empty column
+    if (all(purrr::map_int(listDT, NROW) == 0)) {
         msg <- "The column given to unpack_nested_data had no data in it."
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
-    # Fix the ID because we may have removed some empty elements due to that bug
-    newDT[, .id := oldIDs[.id]]
+    listDT[lengths(listDT) == 0] <- NA
     
-    # Merge
-    outDT[, .id := .I]
-    outDT <- newDT[outDT, on = ".id"]
+    is_df <- purrr::map_lgl(listDT, is.data.frame)
+    is_list <- purrr::map_lgl(listDT, is.list)
+    is_atomic <- purrr::map_lgl(listDT, is.atomic)
+    is_na <- is.na(listDT)
     
-    # Remove the id column and the original column
-    outDT <- outDT[, !c(".id", col_to_unpack), with = FALSE]
+    # Bind packed column into one data.table
+    if (all(is_atomic)) {
+        newDT <- data.table::as.data.table(unlist(listDT))
+        newDT[, (joinCol) := rep(seq_along(listDT), lengths(listDT))]
+    } else if (all(is_df | is_list | is_na)) {
+	    # Find name to use for NA columns
+        first_df <- min(which(is_df))
+        col_name <- names(listDT[[first_df]])[1]
+
+        .prep_na_row <- function(x, col_name) {
+            x <- data.table::as.data.table(x)
+            names(x) <- col_name
+            x
+        }
+
+	    # If the packed column contains data.tables, we use rbindlist
+        newDT <- purrr::map_if(listDT, is_na, .prep_na_row, col_name = col_name)
+        newDT <- data.table::rbindlist(newDT, fill = TRUE, idcol = joinCol)
+    } else {
+        msg <- paste0("Each row in column ", col_to_unpack, " must be a data frame or a vector.")
+        log_fatal(msg)
+    }
+
+    # Join it back in
+    outDT <- inDT[newDT, on = joinCol]
+    outDT[, (joinCol) := NULL]
     
-    # Rename unpacked column if it didn't get a name
+    # In the case of all atomic...
     if ("V1" %in% names(outDT)) {
         data.table::setnames(outDT, "V1", col_to_unpack)
     }
     
     return(outDT)
-    
 }
 
 #' @title Hits to data.tables
@@ -450,7 +451,6 @@ unpack_nested_data <- function(chomped_df, col_to_unpack) {
 #' A function for converting Elasticsearch docs into R data.tables. It
 #' uses \code{\link[jsonlite]{fromJSON}} with \code{flatten = TRUE} to convert a
 #' JSON into an R data.frame, and formats it into a data.table.
-#' @importFrom futile.logger flog.fatal flog.warn flog.info
 #' @importFrom jsonlite fromJSON
 #' @importFrom data.table as.data.table setnames
 #' @export
@@ -488,8 +488,7 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
     # If nothing was passed to hits_json, return NULL and warn
     if (is.null(hits_json)) {
         msg <- "You did not pass any input data to chomp_hits. Returning NULL."
-        futile.logger::flog.warn(msg)
-        warning(msg)
+        log_warn(msg)
         return(NULL)
     }
     
@@ -498,8 +497,7 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
                       , "You may have passed an R list. In that case, if you already "
                       , "used jsonlite::fromJSON(), you can just call "
                       , "data.table::as.data.table().")
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
     # Parse the input JSON to a list object
@@ -514,7 +512,7 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
     }
     
     # Strip "_source" from all the column names because blegh
-    data.table::setnames(batchDT, old = names(batchDT), new = gsub("_source\\.", "", names(batchDT)))
+    data.table::setnames(batchDT, gsub("_source\\.", "", names(batchDT)))
     
     # Warn the user if there's nested data
     colTypes <- sapply(batchDT, mode)
@@ -524,14 +522,13 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
                          , "Consider using unpack_nested_data for one:\n"
                          , paste(names(colTypes)[colTypes == "list"]
                                  , collapse = ", "))
-            futile.logger::flog.info(msg)
+            log_info(msg)
         } else {
             
             msg <- paste("Deleting the following nested data columns:\n"
                          , paste(names(colTypes)[colTypes == "list"]
                                  , collapse = ", "))
-            futile.logger::flog.warn(msg)
-            warning(msg)
+            log_warn(msg)
             batchDT <- batchDT[, !names(colTypes[colTypes == "list"]), with = FALSE]
         }
     }
@@ -545,9 +542,6 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
 #' @description Given a query and some optional parameters, \code{es_search} gets results 
 #'              from HTTP requests to Elasticsearch and returns a data.table 
 #'              representation of those results.
-#' @param es_host A string identifying an Elasticsearch host. This should be of the form 
-#'        \code{[transfer_protocol][hostname]:[port]}. For example, \code{'http://myindex.thing.com:9200'}.
-#' @param es_index The name of an Elasticsearch index to be queried.
 #' @param max_hits Integer. If specified, \code{es_search} will stop pulling data as soon
 #'                 as it has pulled this many hits. Default is \code{Inf}, meaning that
 #'                 all possible hits will be pulled.
@@ -581,7 +575,7 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
 #'        directory in whatever working directory the function is called from. If you
 #'        want to change this behavior, provide a path here. `es_search` will create 
 #'        and write to a temporary directory under whatever path you provide.
-#' @importFrom futile.logger flog.fatal flog.info
+#' @inheritParams doc_shared
 #' @importFrom parallel detectCores
 #' @export
 #' @examples
@@ -631,8 +625,7 @@ es_search <- function(es_host
         msg <- sprintf(paste0("query_body should be a single string. ",
                               "You gave an object of length %s")
                        , length(query_body))
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
     
     # Aggregation Request
@@ -641,7 +634,7 @@ es_search <- function(es_host
         # Let them know
         msg <- paste0("es_search detected that this is an aggs request ",
                       "and will only return aggregation results.")
-        futile.logger::flog.info(msg)
+        log_info(msg)
         
         # Get result
         # NOTE: setting size to 0 so we don't spend time getting hits
@@ -653,7 +646,7 @@ es_search <- function(es_host
     }
     
     # Normal search request
-    futile.logger::flog.info("Executing search request")
+    log_info("Executing search request")
     return(.fetch_all(es_host = es_host
                       , es_index = es_index
                       , size = size
@@ -721,8 +714,7 @@ es_search <- function(es_host
 # \item \href{http://stackoverflow.com/questions/25453872/why-does-this-elasticsearch-scan-and-scroll-keep-returning-the-same-scroll-id}{More background on how/why Elasticsearch generates and changes the scroll_id}
 # }
 #' @importFrom data.table rbindlist setkeyv
-#' @importFrom futile.logger flog.fatal
-#' @importFrom httr POST content
+#' @importFrom httr RETRY content
 #' @importFrom jsonlite fromJSON
 #' @importFrom parallel clusterMap detectCores makeForkCluster makePSOCKcluster stopCluster
 #' @importFrom uuid UUIDgenerate
@@ -752,8 +744,7 @@ es_search <- function(es_host
                       "ignore_scroll_restriction = TRUE.\n",
                       "\nPlease see https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html ",
                       "for more information.")
-        futile.logger::flog.fatal(msg)
-        stop(msg)
+        log_fatal(msg)
     }
 
     # If max_hits < size, we should just request exactly that many hits
@@ -764,8 +755,7 @@ es_search <- function(es_host
         msg <- paste0(sprintf("You requested a maximum of %s hits", max_hits),
                       sprintf(" and a page size of %s.", size),
                       sprintf(" Resetting size to %s for efficiency.", max_hits))
-        futile.logger::flog.warn(msg)
-        warning(msg)
+        log_warn(msg)
         
         size <- max_hits
     }
@@ -774,8 +764,7 @@ es_search <- function(es_host
     if (!is.infinite(max_hits) && max_hits %% size != 0) {
         msg <- paste0("When max_hits is not an exact multiple of size, it is ",
                       "possible to get a few more than max_hits results back.")
-        futile.logger::flog.warn(msg)
-        warning(msg)
+        log_warn(msg)
     }
     
     # Find a safe path to write to and create it
@@ -808,8 +797,7 @@ es_search <- function(es_host
     if (hits_pulled == 0) {
       msg <- paste0('Query is syntactically valid but 0 documents were matched. '
                     , 'Returning NULL')
-      futile.logger::flog.warn(msg)
-      warning(msg)
+      log_warn(msg)
       return(NULL)
     }
     
@@ -833,24 +821,24 @@ es_search <- function(es_host
     
     # Calculate number of hits to pull
     msg <- paste0("Total hits to pull: ", hits_to_pull)
-    futile.logger::flog.info(msg)
+    log_info(msg)
     
     # Set up scroll_url (will be the same everywhere)
     scroll_url <- paste0(es_host, "/_search/scroll?scroll=", scroll)
     
     # Pull all the results (single-threaded)
     msg <- "Scrolling over additional pages of results..."
-    futile.logger::flog.info(msg)
+    log_info(msg)
     .keep_on_pullin(scroll_id = scroll_id
                     , out_path = out_path
                     , max_hits = max_hits
                     , scroll_url = scroll_url
                     , hits_pulled = hits_pulled
                     , hits_to_pull = hits_to_pull)
-    futile.logger::flog.info("Done scrolling over results.")
+    log_info("Done scrolling over results.")
     
     
-    futile.logger::flog.info("Reading and parsing pulled records...")
+    log_info("Reading and parsing pulled records...")
     
     # Find the temp files we wrote out above
     tempFiles <- list.files(path = out_path, pattern = "\\.json$", full.names = TRUE)
@@ -889,7 +877,7 @@ es_search <- function(es_host
         parallel::stopCluster(cl)
     }
     
-    futile.logger::flog.info("Done reading and parsing pulled records.")
+    log_info("Done reading and parsing pulled records.")
     
     # It's POSSIBLE that the parallel process gave us duplicates. Correct for that
     data.table::setkeyv(outDT, NULL)
@@ -897,13 +885,12 @@ es_search <- function(es_host
     
     # Check we got the number of unique records we expected
     if (nrow(outDT) < hits_to_pull && break_on_duplicates){
-        errorMsg <- paste0("Some data was lost during parallel pulling + writing to disk.",
-                           " Expected ", hits_to_pull, " records but only got ", nrow(outDT), ".",
-                           " File collisions are unlikely but possible with this function.",
-                           " Try increasing the value of the scroll param.", 
-                           " Then try re-running and hopefully you won't see this error.")
-        futile.logger::flog.fatal(errorMsg)
-        stop(errorMsg)
+        msg <- paste0("Some data was lost during parallel pulling + writing to disk.",
+                      " Expected ", hits_to_pull, " records but only got ", nrow(outDT), ".",
+                      " File collisions are unlikely but possible with this function.",
+                      " Try increasing the value of the scroll param.", 
+                      " Then try re-running and hopefully you won't see this error.")
+        log_fatal(msg)
     }
     
     return(outDT)
@@ -929,7 +916,7 @@ es_search <- function(es_host
 # [description] Given a scroll id generate with an Elasticsearch scroll search
 #               request, this function will:
 #                   - hit the scroll context to grab the next page of results
-#                   - call chomp_hits to process that page into a data table
+#                   - call chomp_hits to process that page into a data.table
 #                   - write that table to disk in .json format
 #                   - return null
 # [notes] When Elasticsearch receives a query w/ a scroll request, it does the following:
@@ -948,8 +935,7 @@ es_search <- function(es_host
 #          hits_to_pull - Total hits to be pulled (documents matching user's query).
 #                       Or, in the case where max_hits < number of matching docs,
 #                       max_hits.
-#' @importFrom futile.logger flog.info
-#' @importFrom httr content POST stop_for_status
+#' @importFrom httr content RETRY stop_for_status
 #' @importFrom jsonlite fromJSON
 #' @importFrom uuid UUIDgenerate
 .keep_on_pullin <- function(scroll_id
@@ -963,7 +949,7 @@ es_search <- function(es_host
     while (hits_pulled < max_hits){
         
         # Grab a page of hits, break if we got back an error
-        result  <- httr::POST(url = scroll_url, body = scroll_id)
+        result  <- httr::RETRY(verb = "POST", url = scroll_url, body = scroll_id)
         httr::stop_for_status(result)
         resultJSON  <- httr::content(result, as = "text")
 
@@ -986,7 +972,7 @@ es_search <- function(es_host
         
         # Tell the people
         msg <- sprintf('Pulled %s of %s results', hits_pulled, hits_to_pull)
-        futile.logger::flog.info(msg)
+        log_info(msg)
         
     }
     
@@ -1034,8 +1020,7 @@ es_search <- function(es_host
     if (! grepl(protocolPattern, es_host) == 1){
         msg <- paste0('You did not provide a transfer protocol (e.g. http://) with es_host.'
                       , 'Assuming http://...')
-        futile.logger::flog.warn(msg)
-        warning(msg)
+        log_warn(msg)
         
         # Doing this to avoid cases where you just missed a slash or something,
         # e.g. "http:/es.thing.com:9200" --> 'es.thing.com:9200'
@@ -1087,7 +1072,7 @@ es_search <- function(es_host
 #  write(result, 'results.json')
 # 
 # }
-#' @importFrom httr content POST stop_for_status
+#' @importFrom httr content RETRY stop_for_status
 .search_request <- function(es_host
                           , es_index
                           , trailing_args = NULL
@@ -1104,7 +1089,7 @@ es_search <- function(es_host
     }
     
     # Make request
-    result <- httr::POST(url = reqURL, body = query_body)
+    result <- httr::RETRY(verb = "POST", url = reqURL, body = query_body)
     httr::stop_for_status(result)
     result <- httr::content(result, as = "text")
     
@@ -1126,7 +1111,6 @@ es_search <- function(es_host
 # .ConvertToSec('1h') # returns 60*60 = 3600
 # .ConvertToSec('15m') # returns 60*15 = 900
 # }
-#' @importFrom futile.logger flog.fatal
 #' @importFrom stringr str_extract
 .ConvertToSec <- function(duration_string) {
     
@@ -1149,10 +1133,9 @@ es_search <- function(es_host
                                               'minutes (m), hours (h), days (d), or weeks (w) ',
                                               'are supported. You provided: ',
                                               duration_string)
-                                futile.logger::flog.fatal(msg)
-                                stop(msg)
+                                log_fatal(msg)
                             }
-                           )
-                            
+    )
+    
     return(timeInSeconds)
 }

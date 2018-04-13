@@ -1,15 +1,17 @@
 # uptasticsearch
 
-[![CRAN\_Status\_Badge](https://www.r-pkg.org/badges/version-last-release/uptasticsearch)](https://cran.r-project.org/package=uptasticsearch) [![CRAN\_Download\_Badge](https://cranlogs.r-pkg.org/badges/grand-total/uptasticsearch)](https://cran.r-project.org/package=uptasticsearch)
+[![CRAN\_Status\_Badge](https://www.r-pkg.org/badges/version-last-release/uptasticsearch)](https://cran.r-project.org/package=uptasticsearch) [![CRAN\_Download\_Badge](https://cranlogs.r-pkg.org/badges/grand-total/uptasticsearch)](https://cran.r-project.org/package=uptasticsearch) [![Build Status](https://travis-ci.org/UptakeOpenSource/uptasticsearch.svg?branch=master)](https://travis-ci.org/UptakeOpenSource/uptasticsearch)
 
 ## Introduction
 
 This project tackles the issue of getting data out of Elasticsearch and into a tabular format in R.
 
-## Table of contents
+# Table of contents
 1. [How it Works](#howitworks)
 2. [Installation](#installation)
-3. [Usage Examples](#paragraph2)
+    1. [R](#rinstallation)
+    2. [Python](#pythoninstallation)
+3. [Usage Examples](#examples)
     1. [Get a Batch of Documents](#example1)
     2. [Aggregation Results](#example2)
 4. [Next Steps](#nextsteps)
@@ -21,6 +23,8 @@ The core functionality of this package is the `es_search` function. This returns
 
 ## Installation <a name="installation"></a>
 
+### R <a name="rinstallation"></a>
+
 Releases of this package can be installed from CRAN:
 
 ```
@@ -30,8 +34,12 @@ install.packages('uptasticsearch')
 To use the development version of the package, which has the newest changes, you can install directly from GitHub
 
 ```
-devtools::install_github("UptakeOpenSource/uptasticsearch", subdir = 'r-pkg')
+devtools::install_github("UptakeOpenSource/uptasticsearch")
 ```
+
+### Python <a name="pythoninstallation"></a>
+
+We plan to release a Python implementation of this functionality, but that is not available at this time. Check back often!
 
 ## Usage Examples <a name="examples"></a>
 
@@ -44,6 +52,8 @@ The most common use case for this package will be the case where you have an ES 
 In the example below, we use `uptasticsearch` to look for all survey results in which customers said their satisfaction was "low" or "very low" and mentioned food in their comments.
 
 ```
+library(uptasticsearch)
+
 # Build your query in an R string
 qbody <- '{
   "query": {
@@ -88,6 +98,8 @@ Elasticsearch ships with a rich set of aggregations for creating summarized view
 In the example below, we use `uptasticsearch` to create daily timeseries of summary statistics like total revenue and average payment amount.
 
 ```
+library(uptasticsearch)
+
 # Build your query in an R string
 qbody <- '{
   "query": {
