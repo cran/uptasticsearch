@@ -1,542 +1,4 @@
 
-#' @title Parse date-times from Elasticsearch records
-#' @name parse_date_time
-#' @description Given a data.table with date-time strings,
-#'              this function converts those dates-times to type POSIXct with the appropriate
-#'              time zone. Assumption is that dates are of the form "2016-07-25T22:15:19Z"
-#'              where T is just a separator and the last letter is a military timezone.
-#'              
-#'              This is a side-effect-free function: it returns a new data.table and the
-#'              input data.table is unmodified.
-#' @importFrom data.table copy
-#' @importFrom purrr map2 simplify
-#' @importFrom stringr str_extract
-#' @export
-#' @param input_df a data.table with one or more date-time columns you want to convert
-#' @param date_cols Character vector of column names to convert. Columns should have
-#'                string dates of the form "2016-07-25T22:15:19Z".
-#' @param assume_tz Timezone to convert to if parsing fails. Default is UTC
-#' @references \url{https://www.timeanddate.com/time/zones/military}
-#' @references \url{https://en.wikipedia.org/wiki/List_of_tz_database_time_zones}
-#' @examples
-#' # Sample es_search(), chomp_hits(), or chomp_aggs() output:
-#' someDT <- data.table::data.table(id = 1:5
-#'                                  , company = c("Apple", "Apple", "Banana", "Banana", "Cucumber")
-#'                                  , timestamp = c("2015-03-14T09:26:53B", "2015-03-14T09:26:54B"
-#'                                                  , "2031-06-28T08:53:07Z", "2031-06-28T08:53:08Z"
-#'                                                  , "2000-01-01"))
-#'           
-#' # Note that the date field is character right now
-#' str(someDT)
-#' 
-#' # Let's fix that!
-#' someDT <- parse_date_time(input_df = someDT
-#'                           , date_cols = "timestamp"
-#'                           , assume_tz = "UTC")
-#' str(someDT)
-parse_date_time <- function(input_df
-                          , date_cols
-                          , assume_tz = "UTC"
-){
-    
-    # Break if input_df isn't actually a data.table
-    if (!any(class(input_df) %in% "data.table")){
-        msg <- paste("parse_date_time expects to receive a data.table object."
-                     , "You provided an object of class"
-                     , paste(class(input_df), collapse = ", ")
-                     , "to input_df.")
-        log_fatal(msg)
-    }
-    
-    # Break if date_cols is not a character vector
-    if (!identical(class(date_cols), "character")) {
-        msg <- paste("The date_cols argument in parse_date_time expects",
-                     "a character vector of column names. You gave an object",
-                     "of class", paste(class(date_cols), collapse = ", "))
-        log_fatal(msg)
-    }
-    
-    # Break if any of the date_cols are not actually in this DT
-    if (!all(date_cols %in% names(input_df))){
-        not_there <- date_cols[!(date_cols %in% names(input_df))]
-        msg <- paste("The following columns, which you passed to date_cols,",
-                     "do not actually exist in input_df:",
-                     paste(not_there, collapse = ", "))
-        log_fatal(msg)
-    }
-    
-    # Work on a copy of the DT to avoid side effects
-    outDT <- data.table::copy(input_df)
-    
-    # Map one-letter TZs to valid timezones to be passed to lubridate functions
-    # Military (one-letter) times: 
-    # Mapping UTC to etc --> https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-    tzHash <- vector("character")
-    tzHash["A"] <-  "Etc/GMT-1" # UTC +1
-    tzHash["B"] <-  "Etc/GMT-2" # UTC +2
-    tzHash["C"] <-  "Etc/GMT-3" # UTC +3
-    tzHash["D"] <-  "Etc/GMT-4" # UTC +4
-    tzHash["E"] <-  "Etc/GMT-5" # UTC +5
-    tzHash["F"] <-  "Etc/GMT-6" # UTC +6
-    tzHash["G"] <-  "Etc/GMT-7" # UTC +7
-    tzHash["H"] <-  "Etc/GMT-8" # UTC +8
-    tzHash["I"] <-  "Etc/GMT-9" # UTC +9
-    tzHash["K"] <-  "Etc/GMT-10" # UTC +10
-    tzHash["L"] <-  "Etc/GMT-11" # UTC +11
-    tzHash["M"] <-  "Etc/GMT-12" # UTC +12
-    tzHash["N"] <-  "Etc/GMT+1" # UTC -1
-    tzHash["O"] <-  "Etc/GMT+2" # UTC -2
-    tzHash["P"] <-  "Etc/GMT+3" # UTC -3
-    tzHash["Q"] <-  "Etc/GMT+4" # UTC -4
-    tzHash["R"] <-  "Etc/GMT+5" # UTC -5
-    tzHash["S"] <-  "Etc/GMT+6" # UTC -6
-    tzHash["T"] <-  "Etc/GMT+7" # UTC -7
-    tzHash["U"] <-  "Etc/GMT+8" # UTC -8
-    tzHash["V"] <-  "Etc/GMT+9" # UTC -9
-    tzHash["W"] <-  "Etc/GMT+10" # UTC -10
-    tzHash["X"] <-  "Etc/GMT+11" # UTC -11
-    tzHash["Y"] <-  "Etc/GMT+12" # UTC -12
-    tzHash["Z"] <-  "UTC" # UTC  
-    
-    # Parse dates, return POSIXct UTC dates
-    for (dateCol in date_cols){
-        
-        # Grab this vector to work on
-        dateVec <- outDT[[dateCol]]
-        
-        # Parse out timestamps and military timezone strings
-        dateTimes <- paste0(stringr::str_extract(dateVec, "^\\d{4}-\\d{2}-\\d{2}"), " ",
-                            stringr::str_extract(dateVec, "\\d{2}:\\d{2}:\\d{2}"))
-        tzKeys <- stringr::str_extract(dateVec, "[A-Za-z]{1}$")
-        
-        # Grab a vector of timezones
-        timeZones <- tzHash[tzKeys]
-        timeZones[is.na(timeZones)] <- assume_tz
-        
-        # Combine the timestamp and timezone vector to convert to POSIXct
-        dateTimes <- purrr::map2(dateTimes, timeZones, 
-                                 function(dateTime, timeZone){as.POSIXct(dateTime, tz = timeZone)})
-        utcDates  <- as.POSIXct.numeric(purrr::simplify(dateTimes), origin = "1970-01-01", tz = "UTC")
-        
-        # Put back in the data.table
-        outDT[, (dateCol) := utcDates]
-    }
-    
-    return(outDT)
-}
-
-#' @title Aggs query to data.table
-#' @name chomp_aggs
-#' @description Given some raw JSON from an aggs query in Elasticsearch, parse the
-#'              aggregations into a data.table.
-#' @importFrom jsonlite fromJSON
-#' @importFrom data.table as.data.table setnames setcolorder
-#' @export
-#' @param aggs_json A character vector. If its length is greater than 1, its elements will be pasted 
-#'        together. This can contain a JSON returned from an \code{aggs} query in Elasticsearch, or
-#'        a filepath or URL pointing at one.
-#' @examples
-#' # A sample raw result from an aggs query combining date_histogram and extended_stats:
-#' result <- '{"aggregations":{"dateTime":{"buckets":[{"key_as_string":"2016-12-01T00:00:00.000Z",
-#' "key":1480550400000,"doc_count":123,"num_potatoes":{"count":120,"min":0,"max":40,"avg":15,
-#' "sum":1800,"sum_of_squares":28000,"variance":225,"std_deviation":15,"std_deviation_bounds":{
-#' "upper":26,"lower":13}}},{"key_as_string":"2017-01-01T00:00:00.000Z","key":1483228800000,
-#' "doc_count":134,"num_potatoes":{"count":131,"min":0,"max":39,"avg":16,"sum":2096,
-#' "sum_of_squares":34000,"variance":225,"std_deviation":15,"std_deviation_bounds":{"upper":26,
-#' "lower":13}}}]}}}'
-#' 
-#' # Parse into a data.table
-#' aggDT <- chomp_aggs(aggs_json = result)
-#' print(aggDT)
-chomp_aggs <- function(aggs_json = NULL) {
-    
-    # If nothing was passed to aggs_json, return NULL and warn
-    if (is.null(aggs_json)) {
-        msg <- "You did not pass any input data to chomp_aggs. Returning NULL."
-        log_warn(msg)
-        return(NULL)
-    }
-    
-    if (!("character" %in% class(aggs_json))) {
-        msg <- paste0("The first argument of chomp_aggs must be a character vector."
-                      , "You may have passed an R list. Try querying with uptasticsearch:::.search_request()")
-        log_fatal(msg)
-    }
-    
-    # Parse the input JSON to a list object
-    jsonList <- jsonlite::fromJSON(aggs_json, flatten = TRUE)
-    
-    # Get first agg name
-    aggNames <- names(jsonList[["aggregations"]])      # should be length 1
-    
-    # Gross special-case handler for one-level extended_stats aggregation
-    if (.IsExtendedStatsAgg(jsonList[["aggregations"]][[aggNames]])){
-        log_info("es_search is assuming that this result is a one-level 'extended_stats' result.")
-        jsonList[["aggregations"]][[1]][["std_deviation_bounds.upper"]] <- jsonList[["aggregations"]][[1]][["std_deviation_bounds"]][["upper"]]
-        jsonList[["aggregations"]][[1]][["std_deviation_bounds.lower"]] <- jsonList[["aggregations"]][[1]][["std_deviation_bounds"]][["lower"]]
-        jsonList[["aggregations"]][[1]][["std_deviation_bounds"]] <- NULL
-    } 
-    
-    # Gross special-case handler for one-level percentiles aggregation
-    if (.IsPercentilesAgg(jsonList[["aggregations"]][[aggNames]])){
-        log_info("es_search is assuming that this result is a one-level 'percentiles' result.")
-        
-        # Replace names like `25.0` with something that will be easier for users to understand
-        # Doing this changes column names like thing.values.25.0 to thing.percentile_25.0
-        percValues <- jsonList[["aggregations"]][[aggNames]][["values"]]
-        names(percValues) <- paste0("percentile_", names(percValues))
-        jsonList[["aggregations"]][[aggNames]] <- percValues
-    }
-    
-    if (.IsSigTermsAgg(jsonList[["aggregations"]][[aggNames]])){
-        log_info("es_search is assuming that this result is a one-level 'significant terms' result.")
-        
-        # We can grab that nested data.frame and break out right now
-        outDT <- data.table::as.data.table(jsonList[["aggregations"]][[aggNames]][["buckets"]])
-        data.table::setnames(outDT, 'key', aggNames)
-        return(outDT)
-    }
-    
-    # Get the data.table. One of these columns is a list of data.frames.
-    outDT <- data.table::as.data.table(jsonList[["aggregations"]][[aggNames]])
-    
-    # Keep unpacking the nested arrays until you hit 'break'
-    while(TRUE) {
-        # Clean up the column names
-        .clean_aggs_colnames(outDT)
-        
-        # Rename the key to the agg name on this level
-        if ("key_as_string" %in% names(outDT)) {
-            data.table::setnames(outDT, "key_as_string", aggNames[length(aggNames)])
-            outDT <- outDT[, !"key", with = FALSE]
-        } else {
-            
-            # Other bucketed aggregations (not date_histogram) will have "key"
-            if ("key" %in% names(outDT)){
-                data.table::setnames(outDT, "key", aggNames[length(aggNames)])
-            } else {
-                # If we get down here, we know it's not a bucketed aggregation
-                # So we want to take like "count", "min", "max" and change them to 
-                # e.g. "some_field.count", "some_field.min", "some_field.max"
-                data.table::setnames(outDT, paste0(aggNames, ".", names(outDT)))
-            }
-        }
-        
-        # What types are the remaining columns? If one's a list, loop back again.
-        colTypes <- sapply(outDT, mode)
-        if (any(colTypes == "list")) {
-            
-            # Store the new agg name
-            aggNames[length(aggNames) + 1] <- names(colTypes[colTypes == "list"])
-            
-            # Remove unwanted columns
-            badCols <- grep("doc_count", names(outDT))
-            if (length(badCols) > 0){
-                outDT <- outDT[, !badCols, with = FALSE]
-            }
-            
-            # Unpack the list column
-            outDT <- unpack_nested_data(outDT, aggNames[length(aggNames)])
-            
-        } else {
-            # Remove unwanted columns, but keep doc_count
-            badCols <- base::setdiff(grep("doc_count", names(outDT), value = TRUE), "doc_count")
-            if (length(badCols) > 0) {
-                outDT <- outDT[, !badCols, with = FALSE]
-            }
-            break
-        }
-    }
-    
-    # Re-set the column order to mirror the way the user specified their aggs query
-    # NOTE: If there's no "doc_count" in the names, we know that this was not a bucketed
-    # / nested query and reordering is unnecessary
-    if ("doc_count" %in% names(outDT)){
-        data.table::setcolorder(outDT, c(aggNames
-                                     , base::setdiff(names(outDT), c(aggNames, "doc_count"))
-                                     , "doc_count"))
-    }
-    
-    return(outDT)
-    
-}
-
-
-# Cleans the column names of a data.table so they don't include ".buckets" or "buckets."
-# Used in chomp_aggs. Call this by reference, not assignment.
-#' @importFrom data.table setnames
-.clean_aggs_colnames <- function(DT) {
-    old <- grep("buckets", names(DT), value = TRUE)
-    new <- gsub("\\.?buckets\\.?", "", old)
-    data.table::setnames(DT, old, new)
-}
-
-# [name] .IsExtendedStatsAgg
-# [description] Detect whether or not a particular aggregation result is a one-level
-#               "extended_stats" aggregation. data.table doesn't handle those
-#               in a way that's consistent with the way this package handles all other aggregations
-# [param] aggsList R list-object representation of an "aggs" result from Elasticsearch
-.IsExtendedStatsAgg <- function(aggsList){
-    statsNames <- c("count", "min", "max", "avg", "sum", "sum_of_squares"
-                    , "variance", "std_deviation", "std_deviation_bounds")
-    
-    return(all(statsNames %in% names(aggsList)))
-}
-
-# [name] .IsPercentilesAgg
-# [description] Detect whether or not a particular aggregation result is a one-level
-#               "Percentiles" aggregation. data.table doesn't handle those
-#               in a way that's consistent with the way this package handles all other aggregations
-# [param] aggsList R list-object representation of an "aggs" result from Elasticsearch
-.IsPercentilesAgg <- function(aggsList){
-    
-    # check 1 - has a single element called "values"
-    if (! identical("values", names(aggsList))){
-        return(FALSE)
-    }
-    
-    # check 2 - all names of "values" are convertible to numbers
-    numNames <- as.numeric(names(aggsList[["values"]]))
-    if (all(vapply(numNames, function(val){!is.na(val)}, FUN.VALUE = TRUE))){
-        return(TRUE)
-    } else {
-        return(FALSE)
-    }
-}
-
-
-# [name] .IsSigTermsAgg
-# [description] Detect whether or not a particular aggregation result is a one-level
-#               "significant terms" aggregation. data.table doesn't handle those
-#               in a way that's consistent with the way this package handles all other aggregations
-# [param] aggsList R list-object representation of an "aggs" result from Elasticsearch
-.IsSigTermsAgg <- function(aggsList){
-    
-    # check 1 - has exactly two keys - "doc_count", "buckets"
-    if (! identical(sort(names(aggsList)), c('buckets', 'doc_count'))){
-        return(FALSE)
-    }
-    
-    # check 2 - "buckets" is a data.frame 
-    if (!"data.frame" %in% class(aggsList[['buckets']])){
-        return(FALSE)
-    }
-    
-    # check 3 - "buckets" has at least the columns "key", "doc_count", and "bg_count"
-    if (!all(c('key', 'doc_count', 'bg_count') %in% names(aggsList[['buckets']]))){
-        return(FALSE)
-    }
-    
-    return(TRUE)
-}
-
-
-#' @title Unpack a nested data.table
-#' @name unpack_nested_data
-#' @description After calling a \code{chomp_*} function or \code{es_search}, if 
-#'   you had a nested array in the JSON, its corresponding column in the 
-#'   resulting data.table is a data.frame itself (or a list of vectors). This 
-#'   function expands that nested column out, adding its data to the original 
-#'   data.table, and duplicating metadata down the rows as necessary.
-#'   
-#'   This is a side-effect-free function: it returns a new data.table and the
-#'   input data.table is unmodified.
-#' @importFrom data.table copy as.data.table rbindlist setnames
-#' @importFrom purrr map_if map_lgl map_int
-#' @export
-#' @param chomped_df a data.table
-#' @param col_to_unpack a character vector of length one: the column name to 
-#'   unpack
-#' @examples
-#' # A sample raw result from a hits query:
-#' result <- '[{"_source":{"timestamp":"2017-01-01","cust_name":"Austin","details":{
-#' "cust_class":"big_spender","location":"chicago","pastPurchases":[{"film":"The Notebook",
-#' "pmt_amount":6.25},{"film":"The Town","pmt_amount":8.00},{"film":"Zootopia","pmt_amount":7.50,
-#' "matinee":true}]}}},{"_source":{"timestamp":"2017-02-02","cust_name":"James","details":{
-#' "cust_class":"peasant","location":"chicago","pastPurchases":[{"film":"Minions",
-#' "pmt_amount":6.25,"matinee":true},{"film":"Rogue One","pmt_amount":10.25},{"film":"Bridesmaids",
-#' "pmt_amount":8.75},{"film":"Bridesmaids","pmt_amount":6.25,"matinee":true}]}}},{"_source":{
-#' "timestamp":"2017-03-03","cust_name":"Nick","details":{"cust_class":"critic","location":"cannes",
-#' "pastPurchases":[{"film":"Aala Kaf Ifrit","pmt_amount":0,"matinee":true},{
-#' "film":"Dopo la guerra (Apres la Guerre)","pmt_amount":0,"matinee":true},{
-#' "film":"Avengers: Infinity War","pmt_amount":12.75}]}}}]'
-#' 
-#' # Chomp into a data.table
-#' sampleChompedDT <- chomp_hits(hits_json = result, keep_nested_data_cols = TRUE)
-#' print(sampleChompedDT)
-#' 
-#' # (Note: use es_search() to get here in one step)
-#' 
-#' # Unpack by details.pastPurchases
-#' unpackedDT <- unpack_nested_data(chomped_df = sampleChompedDT
-#'                                  , col_to_unpack = "details.pastPurchases")
-#' print(unpackedDT)
-unpack_nested_data <- function(chomped_df, col_to_unpack)  {
-    
-    # Input checks
-    if (!("data.table" %in% class(chomped_df))) {
-        msg <- "For unpack_nested_data, chomped_df must be a data.table"
-        log_fatal(msg)
-    }
-    if (!("character" %in% class(col_to_unpack)) || length(col_to_unpack) != 1) {
-        msg <- "For unpack_nested_data, col_to_unpack must be a character of length 1"
-        log_fatal(msg)
-    }
-    if (!(col_to_unpack %in% names(chomped_df))) {
-        msg <- "For unpack_nested_data, col_to_unpack must be one of the column names"
-        log_fatal(msg)
-    }
-    
-    inDT <- data.table::copy(chomped_df)
-    
-    # Define a column name to store original row ID
-    joinCol <- uuid::UUIDgenerate()
-    inDT[, (joinCol) := .I]
-    
-    # Take out the packed column
-    listDT <- inDT[[col_to_unpack]]
-    inDT[, (col_to_unpack) := NULL]
-    
-    # Check for empty column
-    if (all(purrr::map_int(listDT, NROW) == 0)) {
-        msg <- "The column given to unpack_nested_data had no data in it."
-        log_fatal(msg)
-    }
-    
-    listDT[lengths(listDT) == 0] <- NA
-    
-    is_df <- purrr::map_lgl(listDT, is.data.frame)
-    is_list <- purrr::map_lgl(listDT, is.list)
-    is_atomic <- purrr::map_lgl(listDT, is.atomic)
-    is_na <- is.na(listDT)
-    
-    # Bind packed column into one data.table
-    if (all(is_atomic)) {
-        newDT <- data.table::as.data.table(unlist(listDT))
-        newDT[, (joinCol) := rep(seq_along(listDT), lengths(listDT))]
-    } else if (all(is_df | is_list | is_na)) {
-	    # Find name to use for NA columns
-        first_df <- min(which(is_df))
-        col_name <- names(listDT[[first_df]])[1]
-
-        .prep_na_row <- function(x, col_name) {
-            x <- data.table::as.data.table(x)
-            names(x) <- col_name
-            x
-        }
-
-	    # If the packed column contains data.tables, we use rbindlist
-        newDT <- purrr::map_if(listDT, is_na, .prep_na_row, col_name = col_name)
-        newDT <- data.table::rbindlist(newDT, fill = TRUE, idcol = joinCol)
-    } else {
-        msg <- paste0("Each row in column ", col_to_unpack, " must be a data frame or a vector.")
-        log_fatal(msg)
-    }
-
-    # Join it back in
-    outDT <- inDT[newDT, on = joinCol]
-    outDT[, (joinCol) := NULL]
-    
-    # In the case of all atomic...
-    if ("V1" %in% names(outDT)) {
-        data.table::setnames(outDT, "V1", col_to_unpack)
-    }
-    
-    return(outDT)
-}
-
-#' @title Hits to data.tables
-#' @name chomp_hits
-#' @description
-#' A function for converting Elasticsearch docs into R data.tables. It
-#' uses \code{\link[jsonlite]{fromJSON}} with \code{flatten = TRUE} to convert a
-#' JSON into an R data.frame, and formats it into a data.table.
-#' @importFrom jsonlite fromJSON
-#' @importFrom data.table as.data.table setnames
-#' @export
-#' @param hits_json A character vector. If its length is greater than 1, its elements will be pasted 
-#'        together. This can contain a JSON returned from a \code{search} query in Elasticsearch, or
-#'        a filepath or URL pointing at one.
-#' @param keep_nested_data_cols a boolean (default TRUE); whether to keep columns that are nested
-#'        arrays in the original JSON. A warning will be given if these columns are deleted.
-#' @examples
-#' # A sample raw result from a hits query:
-#' result <- '[{"_source":{"timestamp":"2017-01-01","cust_name":"Austin","details":{
-#' "cust_class":"big_spender","location":"chicago","pastPurchases":[{"film":"The Notebook",
-#' "pmt_amount":6.25},{"film":"The Town","pmt_amount":8.00},{"film":"Zootopia","pmt_amount":7.50,
-#' "matinee":true}]}}},{"_source":{"timestamp":"2017-02-02","cust_name":"James","details":{
-#' "cust_class":"peasant","location":"chicago","pastPurchases":[{"film":"Minions",
-#' "pmt_amount":6.25,"matinee":true},{"film":"Rogue One","pmt_amount":10.25},{"film":"Bridesmaids",
-#' "pmt_amount":8.75},{"film":"Bridesmaids","pmt_amount":6.25,"matinee":true}]}}},{"_source":{
-#' "timestamp":"2017-03-03","cust_name":"Nick","details":{"cust_class":"critic","location":"cannes",
-#' "pastPurchases":[{"film":"Aala Kaf Ifrit","pmt_amount":0,"matinee":true},{
-#' "film":"Dopo la guerra (Apres la Guerre)","pmt_amount":0,"matinee":true},{
-#' "film":"Avengers: Infinity War","pmt_amount":12.75}]}}}]'
-#' 
-#' # Chomp into a data.table
-#' sampleChompedDT <- chomp_hits(hits_json = result, keep_nested_data_cols = TRUE)
-#' print(sampleChompedDT)
-#' 
-#' # (Note: use es_search() to get here in one step)
-#' 
-#' # Unpack by details.pastPurchases
-#' unpackedDT <- unpack_nested_data(chomped_df = sampleChompedDT
-#'                                  , col_to_unpack = "details.pastPurchases")
-#' print(unpackedDT)
-chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
-    
-    # If nothing was passed to hits_json, return NULL and warn
-    if (is.null(hits_json)) {
-        msg <- "You did not pass any input data to chomp_hits. Returning NULL."
-        log_warn(msg)
-        return(NULL)
-    }
-    
-    if (!("character" %in% class(hits_json))) {
-        msg <- paste0("The first argument of chomp_hits must be a character vector."
-                      , "You may have passed an R list. In that case, if you already "
-                      , "used jsonlite::fromJSON(), you can just call "
-                      , "data.table::as.data.table().")
-        log_fatal(msg)
-    }
-    
-    # Parse the input JSON to a list object
-    jsonList <- jsonlite::fromJSON(hits_json, flatten = TRUE)
-    
-    # If this came from a raw query result, we need to grab the hits.hits element.
-    # Otherwise, just assume we have a list of hits
-    if (all(c("took", "timed_out", "_shards", "hits") %in% names(jsonList))) {
-        batchDT <- data.table::as.data.table(jsonList[["hits"]][["hits"]])
-    } else {
-        batchDT <- data.table::as.data.table(jsonList)
-    }
-    
-    # Strip "_source" from all the column names because blegh
-    data.table::setnames(batchDT, gsub("_source\\.", "", names(batchDT)))
-    
-    # Warn the user if there's nested data
-    colTypes <- sapply(batchDT, mode)
-    if (any(colTypes == "list")) {
-        if (keep_nested_data_cols) {
-            msg <- paste("Keeping the following nested data columns."
-                         , "Consider using unpack_nested_data for one:\n"
-                         , paste(names(colTypes)[colTypes == "list"]
-                                 , collapse = ", "))
-            log_info(msg)
-        } else {
-            
-            msg <- paste("Deleting the following nested data columns:\n"
-                         , paste(names(colTypes)[colTypes == "list"]
-                                 , collapse = ", "))
-            log_warn(msg)
-            batchDT <- batchDT[, !names(colTypes[colTypes == "list"]), with = FALSE]
-        }
-    }
-    
-    return(batchDT)
-}
-
-
 #' @title Execute an ES query and get a data.table
 #' @name es_search
 #' @description Given a query and some optional parameters, \code{es_search} gets results 
@@ -576,6 +38,7 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
 #'        want to change this behavior, provide a path here. `es_search` will create 
 #'        and write to a temporary directory under whatever path you provide.
 #' @inheritParams doc_shared
+#' @importFrom assertthat is.count is.flag is.number is.string is.writeable
 #' @importFrom parallel detectCores
 #' @export
 #' @examples
@@ -608,6 +71,7 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
 #'                       , es_index = 'ticket_sales'
 #'                       , query_body = query_body)
 #' }
+#' @references \href{https://www.elastic.co/guide/en/elasticsearch/reference/6.x/search-request-scroll.html}{ES 6 scrolling strategy}
 es_search <- function(es_host
                       , es_index
                       , size = 10000
@@ -627,6 +91,36 @@ es_search <- function(es_host
                        , length(query_body))
         log_fatal(msg)
     }
+    
+    # prevent NULL index
+    if (is.null(es_index)){
+        msg <- paste0(
+            "You passed NULL to es_index. This is not supported. If you want to "
+            , "search across all indices, use es_index = '_all'."
+        )
+        log_fatal(msg)
+    }
+    
+    # Other input checks we don't have explicit error messages for
+    .assert(
+        assertthat::is.string(es_host)
+        , es_host != ""
+        , assertthat::is.string(es_index)
+        , es_index != ""
+        , assertthat::is.string(query_body)
+        , query_body != ""
+        , assertthat::is.string(scroll)
+        , scroll != ""
+        , max_hits >= 0
+        , assertthat::is.count(n_cores)
+        , n_cores >= 1
+        , assertthat::is.flag(break_on_duplicates)
+        , !is.na(break_on_duplicates)
+        , assertthat::is.flag(ignore_scroll_restriction)
+        , !is.na(ignore_scroll_restriction)
+        , assertthat::is.string(intermediates_dir)
+        , assertthat::is.writeable(intermediates_dir)
+    )
     
     # Aggregation Request
     if (grepl('aggs', query_body)){
@@ -655,6 +149,7 @@ es_search <- function(es_host
                       , max_hits = max_hits
                       , n_cores = n_cores
                       , break_on_duplicates = break_on_duplicates
+                      , ignore_scroll_restriction = ignore_scroll_restriction
                       , intermediates_dir = intermediates_dir))
 }
 
@@ -716,17 +211,17 @@ es_search <- function(es_host
 #' @importFrom data.table rbindlist setkeyv
 #' @importFrom httr RETRY content
 #' @importFrom jsonlite fromJSON
-#' @importFrom parallel clusterMap detectCores makeForkCluster makePSOCKcluster stopCluster
+#' @importFrom parallel clusterMap makeForkCluster makePSOCKcluster stopCluster
 #' @importFrom uuid UUIDgenerate
 .fetch_all <- function(es_host
                      , es_index
-                     , size = 10000
-                     , query_body = '{}'
-                     , scroll = "5m"
-                     , max_hits = Inf
-                     , n_cores = ceiling(parallel::detectCores()/2)
-                     , break_on_duplicates = TRUE
-                     , ignore_scroll_restriction = FALSE
+                     , size
+                     , query_body
+                     , scroll
+                     , max_hits
+                     , n_cores
+                     , break_on_duplicates
+                     , ignore_scroll_restriction
                      , intermediates_dir
 ){
     
@@ -782,10 +277,12 @@ es_search <- function(es_host
     ###===== Pull the first hit =====###
     
     # Get the first result as text
-    firstResultJSON <- .search_request(es_host = es_host
-                                     , es_index = es_index
-                                     , trailing_args = paste0('size=', size, '&scroll=', scroll)
-                                     , query_body = query_body)
+    firstResultJSON <- .search_request(
+        es_host = es_host
+        , es_index = es_index
+        , trailing_args = paste0('size=', size, '&scroll=', scroll)
+        , query_body = query_body
+    )
     
     # Parse to JSON to get total number of documents matching the query
     firstResult <- jsonlite::fromJSON(firstResultJSON, simplifyVector = FALSE)
@@ -798,13 +295,15 @@ es_search <- function(es_host
       msg <- paste0('Query is syntactically valid but 0 documents were matched. '
                     , 'Returning NULL')
       log_warn(msg)
-      return(NULL)
+      return(invisible(NULL))
     }
     
     if (hits_pulled == hits_to_pull) {
         # Parse to data.table
-        esDT <- chomp_hits(hits_json = firstResultJSON
-                          , keep_nested_data_cols = TRUE)
+        esDT <- chomp_hits(
+            hits_json = firstResultJSON
+            , keep_nested_data_cols = TRUE
+        )
         return(esDT)
     }
     
@@ -823,20 +322,17 @@ es_search <- function(es_host
     msg <- paste0("Total hits to pull: ", hits_to_pull)
     log_info(msg)
     
-    # Set up scroll_url (will be the same everywhere)
-    scroll_url <- paste0(es_host, "/_search/scroll?scroll=", scroll)
-    
     # Pull all the results (single-threaded)
     msg <- "Scrolling over additional pages of results..."
     log_info(msg)
     .keep_on_pullin(scroll_id = scroll_id
                     , out_path = out_path
                     , max_hits = max_hits
-                    , scroll_url = scroll_url
+                    , es_host = es_host
+                    , scroll = scroll
                     , hits_pulled = hits_pulled
                     , hits_to_pull = hits_to_pull)
     log_info("Done scrolling over results.")
-    
     
     log_info("Reading and parsing pulled records...")
     
@@ -928,28 +424,46 @@ es_search <- function(es_host
 #          max_hits    - max_hits, comes from .fetch_all. If left as Inf in your call to
 #                       .fetch_all, this param has no influence and you will pull all the data.
 #                       otherwise, this is used to limit the result size.
-#          scroll_url  - Elasticsearch URL to hit to get the next page of data
+#          es_host     - Elasticsearch hostname
+#          scroll      - How long should the scroll context be held open?
 #          hits_pulled - Number of hits pulled in the first batch of results. Used
 #                       to keep a running tally for logging and in controlling
 #                       execution when users pass an argument to max_hits
 #          hits_to_pull - Total hits to be pulled (documents matching user's query).
 #                       Or, in the case where max_hits < number of matching docs,
 #                       max_hits.
-#' @importFrom httr content RETRY stop_for_status
+#' @importFrom httr add_headers content RETRY stop_for_status
 #' @importFrom jsonlite fromJSON
 #' @importFrom uuid UUIDgenerate
 .keep_on_pullin <- function(scroll_id
                             , out_path
-                            , max_hits = Inf
-                            , scroll_url
+                            , max_hits
+                            , es_host
+                            , scroll
                             , hits_pulled
                             , hits_to_pull
 ){
     
+    # Note that the old scrolling strategy was deprecated in ES5.x and 
+    # officially dropped in ES6.x. Need to grab the correct method here
+    major_version <- .get_es_version(es_host)
+    scrolling_request <- switch(
+        major_version
+        , "1" = .legacy_scroll_request
+        , "2" = .legacy_scroll_request
+        , "5" = .new_scroll_request
+        , "6" = .new_scroll_request
+        , .new_scroll_request
+    )
+    
     while (hits_pulled < max_hits){
         
-        # Grab a page of hits, break if we got back an error
-        result  <- httr::RETRY(verb = "POST", url = scroll_url, body = scroll_id)
+        # Grab a page of hits, break if we got back an error. 
+        result  <- scrolling_request(
+            es_host = es_host
+            , scroll = scroll
+            , scroll_id = scroll_id
+        )
         httr::stop_for_status(result)
         resultJSON  <- httr::content(result, as = "text")
 
@@ -976,8 +490,49 @@ es_search <- function(es_host
         
     }
     
-    return(NULL)
+    return(invisible(NULL))
 }
+
+
+# [title] Make a scroll request with the strategy supported by ES 5.x and later
+# [name] .new_scroll_request
+# [description] Make a scrolling request and return the result
+# [references] https://www.elastic.co/guide/en/elasticsearch/reference/6.x/search-request-scroll.html
+#' @importFrom httr add_headers RETRY
+.new_scroll_request <- function(es_host, scroll, scroll_id){
+    
+    # Set up scroll_url
+    scroll_url <- paste0(es_host, "/_search/scroll")
+    
+    # Get the next page
+    result <- httr::RETRY(
+        verb = "POST"
+        , httr::add_headers(c('Content-Type' = 'application/json'))
+        , url = scroll_url
+        , body = sprintf('{"scroll": "%s", "scroll_id": "%s"}', scroll, scroll_id)
+    )
+    return(result)
+}
+
+# [title] Make a scroll request with the strategy supported by ES 1.x and ES 2.x
+# [name] .legacy_scroll_request
+# [description] Make a scrolling request and return the result
+#' @importFrom httr add_headers RETRY
+.legacy_scroll_request <- function(es_host, scroll, scroll_id){
+    
+    # Set up scroll_url
+    scroll_url <- paste0(es_host, "/_search/scroll?scroll=", scroll)
+    
+    # Get the next page
+    result <- httr::RETRY(
+        verb = "POST"
+        , httr::add_headers(c('Content-Type' = 'application/json'))
+        , url = scroll_url
+        , body = scroll_id
+    )
+    return(result)
+}
+
 
 # [title] Check that a string is a valid host for an Elasticsearch cluster
 # [param] A string of the form [transfer_protocol][hostname]:[port]. 
@@ -1033,17 +588,58 @@ es_search <- function(es_host
     
 }
 
+
+# [title] Get ES cluster version
+# [name] .get_es_version
+# [description] Hit the cluster and figure out the major 
+#               version of Elasticsearch.
+# [param] es_host A string identifying an Elasticsearch host. This should be of the form 
+#         [transfer_protocol][hostname]:[port]. For example, 'http://myindex.thing.com:9200'.
+#' @importFrom httr content RETRY stop_for_status
+.get_es_version <- function(es_host){
+    
+    # Hit the cluster root to get metadata
+    log_info("Checking Elasticsearch version...")
+    result  <- httr::RETRY(
+        verb = "GET"
+        , httr::add_headers(c('Content-Type' = 'application/json'))
+        , url = es_host
+    )
+    httr::stop_for_status(result)
+    
+    # Extract version number from the result
+    version  <- httr::content(result, as = "parsed")[["version"]][["number"]]
+    log_info(sprintf("uptasticsearch thinks you are running Elasticsearch %s", version))
+    
+    # Parse out just the major version. We can adjust this if we find
+    # API differences that occured at the minor version level
+    major_version <- .major_version(version)
+    return(major_version)
+}
+
+
+# [title] parse version string
+# [name] .major_version
+# [description] Get major version from a dot-delimited version string
+# [param] version_string A dot-delimited version string
+#' @importFrom stringr str_split
+.major_version <- function(version_string){
+    components <- stringr::str_split(version_string, "\\.")[[1]]
+    return(components[1])
+}
+
+
 # [title] Execute a Search request against an Elasticsearch cluster
 # [name] .search_request
 # [description] Given a query string (JSON with valid DSL), execute a request
-#              and return the JSON result as a string
+#               and return the JSON result as a string
 # [param] es_host A string identifying an Elasticsearch host. This should be of the form 
 #        [transfer_protocol][hostname]:[port]. For example, 'http://myindex.thing.com:9200'.
 # [param] es_index The name of an Elasticsearch index to be queried.
 # [param] trailing_args Arguments to be appended to the end of the request URL (optional).
-#        For example, to limit the size of the returned results, you might pass
-#        "size=0". This can be a single string or a character vector of params, e.g.
-#        \code{c('size=0', 'scroll=5m')}
+#         For example, to limit the size of the returned results, you might pass
+#         "size=0". This can be a single string or a character vector of params, e.g.
+#         \code{c('size=0', 'scroll=5m')}
 # [param] query_body A JSON string with valid Elasticsearch DSL
 # [examples]
 # \dontrun{
@@ -1072,11 +668,11 @@ es_search <- function(es_host
 #  write(result, 'results.json')
 # 
 # }
-#' @importFrom httr content RETRY stop_for_status
+#' @importFrom httr add_headers content RETRY stop_for_status
 .search_request <- function(es_host
                           , es_index
                           , trailing_args = NULL
-                          , query_body = '{}'
+                          , query_body
 ){
     
     # Input checking
@@ -1089,7 +685,12 @@ es_search <- function(es_host
     }
     
     # Make request
-    result <- httr::RETRY(verb = "POST", url = reqURL, body = query_body)
+    result <- httr::RETRY(
+        verb = "POST"
+        , httr::add_headers(c('Content-Type' = 'application/json'))
+        , url = reqURL
+        , body = query_body
+    )
     httr::stop_for_status(result)
     result <- httr::content(result, as = "text")
     

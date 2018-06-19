@@ -1,4 +1,4 @@
-context("Elasticsearch eda functions")
+context("get_fields")
 
 # Configure logger (suppress all logs in testing)
 loggerOptions <- futile.logger::logger.options()
@@ -9,18 +9,15 @@ if (!identical(loggerOptions, list())){
 }
 futile.logger::flog.threshold(0)
 
-#--- 1. get_counts
 
-
-
-#--- 2. get_fields
+#--- get_fields
 
     # Gives an informative error if es_indices is NULL or an empty string
     test_that("get_fields should give an informative error if es_indices is NULL or an empty string",
               {
                   expect_error(get_fields(es_host = "http://es.custdb.mycompany.com:9200"
                                           , es_indices = NULL),
-                               regexp = "get_fields must be passed a valid es_indices")
+                               regexp = "not greater than 0")
                   expect_error(get_fields(es_host = "http://es.custdb.mycompany.com:9200"
                                           , es_indices = ''),
                                regexp = "get_fields must be passed a valid es_indices")
@@ -57,7 +54,7 @@ futile.logger::flog.threshold(0)
     )
     
     
-#--- 3. .flatten_mapping
+#--- .flatten_mapping
     
     # Works if one index is passed
     test_that(".flatten_mapping should work if the mapping for one index is provided",
@@ -93,23 +90,23 @@ futile.logger::flog.threshold(0)
               }
     )
 
-#--- 4. .process_alias
+#--- .process_alias
     
     # works if one alias is passed
-    test_that(".process_alias works if one alias is included",
+    test_that(".process_new_alias works if one alias is included",
               {
                   alias_string <- 'dwm shakespeare - - -\n'
-                  aliasDT <- uptasticsearch:::.process_alias(alias_string = alias_string)
+                  aliasDT <- uptasticsearch:::.process_new_alias(alias_string = alias_string)
                   expected <- data.table::data.table(alias = 'dwm', index = 'shakespeare')
                   expect_identical(aliasDT, expected)
               }
     )
     
     # works if multiple aliases are passed
-    test_that(".process_alias works if one alias is included",
+    test_that(".process_new_alias works if one alias is included",
               {
                   alias_string <- 'dwm   shakespeare - - -\nmoney bank        - - -\n'
-                  aliasDT <- uptasticsearch:::.process_alias(alias_string = alias_string)
+                  aliasDT <- uptasticsearch:::.process_new_alias(alias_string = alias_string)
                   expected <- data.table::data.table(alias = c('dwm', 'money'), index = c('shakespeare', 'bank'))
                   expect_identical(aliasDT, expected)
               }
