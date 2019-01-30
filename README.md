@@ -16,6 +16,8 @@ This project tackles the issue of getting data out of Elasticsearch and into a t
     2. [Aggregation Results](#example2)
 4. [Next Steps](#nextsteps)
     1. [Auth Support](#authsupport)
+5. [Running Tests Locally](#local-tests)
+6. [Regenerating the Documentation Site](#the-site)
 
 ## How it Works <a name="howitworks"></a>
 
@@ -34,12 +36,17 @@ install.packages('uptasticsearch')
 To use the development version of the package, which has the newest changes, you can install directly from GitHub
 
 ```
-devtools::install_github("UptakeOpenSource/uptasticsearch")
+devtools::install_github("UptakeOpenSource/uptasticsearch", subdir = "r-pkg")
 ```
 
 ### Python <a name="pythoninstallation"></a>
 
-We plan to release a Python implementation of this functionality, but that is not available at this time. Check back often!
+This package is not currently available on PyPi. To build the development version from source, clone this repo, then :
+
+```
+cd py-pkg
+pip install .
+```
 
 ## Usage Examples <a name="examples"></a>
 
@@ -84,11 +91,13 @@ qbody <- '{
 }'
 
 # Execute the query, parse into a data.table
-commentDT <- es_search(es_host = 'http://mydb.mycompany.com:9200'
-                       , es_index = "survey_results"
-                       , query_body = qbody
-                       , scroll = "1m"
-                       , n_cores = 4)
+commentDT <- es_search(
+    es_host = 'http://mydb.mycompany.com:9200'
+    , es_index = "survey_results"
+    , query_body = qbody
+    , scroll = "1m"
+    , n_cores = 4
+)
 ```
 
 ### Example 2: Aggregation Results <a name="example2"></a>
@@ -136,68 +145,46 @@ qbody <- '{
 }'
 
 # Execute the query, parse result into a data.table
-revenueDT <- es_search(es_host = 'http://mydb.mycompany.com:9200'
-                       , es_index = "transactions"
-                       , size = 1000
-                       , query_body = qbody
-                       , n_cores = 1)
+revenueDT <- es_search(
+    es_host = 'http://mydb.mycompany.com:9200'
+    , es_index = "transactions"
+    , size = 1000
+    , query_body = qbody
+    , n_cores = 1
+)
 ```
 
 In the example above, we used the [date_histogram](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-datehistogram-aggregation.html) and [extended_stats](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-extendedstats-aggregation.html) aggregations. `es_search` has built-in support for many other aggregations and combinations of aggregations, with more on the way. Please see the table below for the current status of the package. Note that names of the form "agg1 - agg2" refer to the ability to handled aggregations nested inside other aggregations.
 
-|Agg type                                     | R support?  |
-|:--------------------------------------------|:-----------:|
-|["cardinality"](http://bit.ly/2sn5Qiw)       |YES          |
-|["date_histogram"](http://bit.ly/2qIR97Z)    |YES          |
-|date_histogram - cardinality                 |YES          |
-|date_histogram - extended_stats              |YES          |
-|date_histogram - histogram                   |YES          |
-|date_histogram - percentiles                 |YES          |
-|date_histogram - significant_terms           |YES          |
-|date_histogram - stats                       |YES          |
-|date_histogram - terms                       |YES          |
-|["extended_stats"](http://bit.ly/2qKqsDU)    |YES          |
-|["histogram"](http://bit.ly/2sn4LXF)         |YES          |
-|["percentiles"](http://bit.ly/2sy4z7f)       |YES          |
-|["significant terms"](http://bit.ly/1KnhT1r) |YES          |
-|["stats"](http://bit.ly/2sn1t74)             |YES          |
-|["terms"](http://bit.ly/2mJyQ0C)             |YES          |
-|terms - cardinality                          |YES          |
-|terms - date_histogram                       |YES          |
-|terms - date_histogram - cardinality         |YES          |
-|terms - date_histogram - extended_stats      |YES          |
-|terms - date_histogram - histogram           |YES          |
-|terms - date_histogram - percentiles         |YES          |
-|terms - date_histogram - significant_terms   |YES          |
-|terms - date_histogram - stats               |YES          |
-|terms - date_histogram - terms               |YES          |
-|terms - extended_stats                       |YES          |
-|terms - histogram                            |YES          |
-|terms - percentiles                          |YES          |
-|terms - significant_terms                    |YES          |
-|terms - stats                                |YES          |
-|terms - terms                                |YES          |
-
-### Auth Support <a name="authsupport"></a>
-
-`uptasticsearch` does not currently support queries with authentication. This will be added in future versions.
-
-### Running Tests Locally
-
-When developing on this package, you may want to run Elasticsearch locally to speed up the testing cycle. We've provided some gross bash scripts at the root of this repo to help!
-
-To run the code below, you will need [Docker](https://www.docker.com/). Note that I've passed an argument to `setup_local.sh` indicating the major version of ES I want to run. If you don't do that, this script will just run the most recent major version of Elasticsearch. Look at the source code of `setup_local.sh` for a list of the valid arguments.
-
-```
-# Start up Elasticsearch on localhost:9200 and seed it with data
-./setup_local.sh 5.5
-
-# Run tests
-Rscript -e "devtools::test()"
-
-# Get test coverage and generate coverage report
-./coverage.sh
-
-# Tear down the container and remove testing files
-./cleanup_local.sh
-```
+|Agg type                                     | R support?  | Python support?  |
+|:--------------------------------------------|:-----------:|:----------------:|
+|["cardinality"](http://bit.ly/2sn5Qiw)       |YES          |NO                |
+|["date_histogram"](http://bit.ly/2qIR97Z)    |YES          |NO                |
+|date_histogram - cardinality                 |YES          |NO                |
+|date_histogram - extended_stats              |YES          |NO                |
+|date_histogram - histogram                   |YES          |NO                |
+|date_histogram - percentiles                 |YES          |NO                |
+|date_histogram - significant_terms           |YES          |NO                |
+|date_histogram - stats                       |YES          |NO                |
+|date_histogram - terms                       |YES          |NO                |
+|["extended_stats"](http://bit.ly/2qKqsDU)    |YES          |NO                |
+|["histogram"](http://bit.ly/2sn4LXF)         |YES          |NO                |
+|["percentiles"](http://bit.ly/2sy4z7f)       |YES          |NO                |
+|["significant terms"](http://bit.ly/1KnhT1r) |YES          |NO                |
+|["stats"](http://bit.ly/2sn1t74)             |YES          |NO                |
+|["terms"](http://bit.ly/2mJyQ0C)             |YES          |NO                |
+|terms - cardinality                          |YES          |NO                |
+|terms - date_histogram                       |YES          |NO                |
+|terms - date_histogram - cardinality         |YES          |NO                |
+|terms - date_histogram - extended_stats      |YES          |NO                |
+|terms - date_histogram - histogram           |YES          |NO                |
+|terms - date_histogram - percentiles         |YES          |NO                |
+|terms - date_histogram - significant_terms   |YES          |NO                |
+|terms - date_histogram - stats               |YES          |NO                |
+|terms - date_histogram - terms               |YES          |NO                |
+|terms - extended_stats                       |YES          |NO                |
+|terms - histogram                            |YES          |NO                |
+|terms - percentiles                          |YES          |NO                |
+|terms - significant_terms                    |YES          |NO                |
+|terms - stats                                |YES          |NO                |
+|terms - terms                                |YES          |NO                |

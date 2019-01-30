@@ -1,3 +1,13 @@
+# uptasticsearch 0.3.1
+
+## Bugfixes
+
+### Minor changes to unit tests to comply with CRAN
+- [#136](https://github.com/UptakeOpenSource/uptasticsearch/pull/136) removed calls to `closeAllConnections()` in unit tests because they were superfluous and causing problems on certain operating systems in the CRAN check farm.
+
+### Changed strategy for removing duplicate records
+- [#138](https://github.com/UptakeOpenSource/uptasticsearch/pull/138) changed our strategy for deduping records from `unique(outDT)` to `unique(outDT, by = "_id")`. This was prompted by [Rdatatable/data.table#3332](https://github.com/Rdatatable/data.table/issues/3332) (changes in `data.table` 1.12.0), but it's actually faster and safer anyway!
+
 # uptasticsearch 0.3.0
 
 ## Features
@@ -10,6 +20,9 @@
 
 ### `get_fields` when your index has no aliases
 - previously, `get_fields` broke on some legacy versions of Elasticsearch where no aliases had been created. The response on the `_cat/aliases` endpoint has changed from major version to major version. [#66](https://github.com/UptakeOpenSource/uptasticsearch/pull/66) fixed this for all major versions of ES from 1.0 to 6.2
+
+### `get_fields` when your index has multiple aliases
+- previously, if you had multiple aliases pointing to the same physical index, `get_fields` would only return one of those. As of [#73](https://github.com/UptakeOpenSource/uptasticsearch/pull/73), mappings for the underlying physical index will now be duplicated once per alias in the table returned by `get_fields`.
 
 ### bad parsing of ES major version
 - as of [#64](https://github.com/UptakeOpenSource/uptasticsearch/pull/64), `uptasticsearch` attempts to query the ES host to figure out what major version of Elasticsearch is running there. Implementation errors in that PR led to versions being parsed incorrectly but silently passing tests. This was fixed in [#66](https://github.com/UptakeOpenSource/uptasticsearch/pull/66). NOTE: this only impacted the dev version of the library on Github.
