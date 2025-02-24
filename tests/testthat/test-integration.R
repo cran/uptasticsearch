@@ -1,20 +1,20 @@
-context("Elasticsearch integration tests")
-
-# tests in this file are run automatically on Travis and require
+# tests in this file are run automatically in CI and require
 # an actual Elasticsearch cluster to be up and running. For details,
-# see: https://github.com/uptake/uptasticsearch/blob/master/.travis.yml
+# see: https://github.com/uptake/uptasticsearch/blob/main/.github/workflows/ci.yml
 
 # Sample data from:
 # - https://www.elastic.co/guide/en/kibana/current/tutorial-load-dataset.html
 
 # Configure logger (suppress all logs in testing)
 loggerOptions <- futile.logger::logger.options()
-if (!identical(loggerOptions, list())){
-    origLogThreshold <- loggerOptions[[1]][['threshold']]
+if (!identical(loggerOptions, list())) {
+    origLogThreshold <- loggerOptions[[1]][["threshold"]]
 } else {
     origLogThreshold <- futile.logger::INFO
 }
 futile.logger::flog.threshold(0)
+
+ES_HOST <- "http://127.0.0.1:9200"
 
 #--- es_search
 
@@ -23,7 +23,7 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         outDT <- es_search(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_index = "shakespeare"
             , max_hits = 100
             , size = 100
@@ -36,7 +36,7 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         outDT <- es_search(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_index = "shakespeare"
             , max_hits = 30
             , size = 2
@@ -49,7 +49,7 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         outDT <- es_search(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_index = "shakespeare"
             , max_hits = 30
             , size = 2
@@ -64,7 +64,7 @@ futile.logger::flog.threshold(0)
 
         expect_error({
             outDT <- es_search(
-                es_host = "http://127.0.0.1:9200"
+                es_host = ES_HOST
                 , es_index = "shakespeare"
                 , max_hits = 100
                 , size = 100
@@ -79,7 +79,7 @@ futile.logger::flog.threshold(0)
 
         expect_warning({
             outDT <- es_search(
-                es_host = "http://127.0.0.1:9200"
+                es_host = ES_HOST
                 , es_index = "shakespeare"
                 , max_hits = 9999
             )
@@ -93,7 +93,7 @@ futile.logger::flog.threshold(0)
 
         expect_warning({
             outDT <- es_search(
-                es_host = "http://127.0.0.1:9200"
+                es_host = ES_HOST
                 , es_index = "shakespeare"
                 , max_hits = 12
                 , size = 7
@@ -110,7 +110,7 @@ futile.logger::flog.threshold(0)
         #       and I want to avoid exposing our tests to changes in the query DSL
         expect_warning({
             outDT <- es_search(
-                es_host = "http://127.0.0.1:9200"
+                es_host = ES_HOST
                 , es_index = "empty_index"
             )
         }, regexp = "Query is syntactically valid but 0 documents were matched")
@@ -122,10 +122,10 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         outDT <- es_search(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_index = "shakespeare"
             , max_hits = 100
-            , query = '{"aggs": {"thing": {"terms": {"field": "speaker", "size": 12}}}}'
+            , query = '{"aggs": {"thing": {"terms": {"field": "speaker", "size": 12}}}}'  # nolint[quotes]
         )
 
         expect_true(data.table::is.data.table(outDT))
@@ -133,7 +133,7 @@ futile.logger::flog.threshold(0)
         major_version <- .major_version(
             .get_es_version("http://127.0.0.1:9200")
         )
-        if (as.integer(major_version) >= 7){
+        if (as.integer(major_version) >= 7) {
             num_expected_levels <- 3
         }
         expect_true(nrow(outDT) == num_expected_levels)
@@ -152,10 +152,10 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         outDT <- es_search(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_index = "shakespeare"
             , max_hits = 100
-            , query = '{"aggs": {"name_i_picked": {"terms": {"field": "speaker", "size": 12}}}}'
+            , query = '{"aggs": {"name_i_picked": {"terms": {"field": "speaker", "size": 12}}}}'  # nolint[quotes]
         )
 
         # main test
@@ -166,7 +166,7 @@ futile.logger::flog.threshold(0)
             , ignore.order = TRUE
         )
 
-        # ther stuff we might as well test
+        # the stuff we might as well test
         expect_true(data.table::is.data.table(outDT))
         expect_true(is.numeric(outDT[, doc_count]))
         expect_true(is.character(outDT[, name_i_picked]))
@@ -174,16 +174,16 @@ futile.logger::flog.threshold(0)
     })
 
     # We have tests on static empty results, but this test will catch
-    # changes across versions in the way ES actually responds to aggs results that
+    # changes across versions in the way Elasticsearch actually responds to aggs results that
     # return nothing
     test_that("es_search correctly handles empty bucketed aggregation result", {
         testthat::skip_on_cran()
 
         outDT <- es_search(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_index = "shakespeare"
             , max_hits = 100
-            , query = '{"aggs": {"blegh": {"terms": {"field": "nonsense_field"}}}}'
+            , query = '{"aggs": {"blegh": {"terms": {"field": "nonsense_field"}}}}'  # nolint[quotes]
         )
         expect_null(outDT)
     })
@@ -193,14 +193,14 @@ futile.logger::flog.threshold(0)
     test_that(".get_es_version works", {
         testthat::skip_on_cran()
 
-        ver <- uptasticsearch:::.get_es_version(es_host = "http://127.0.0.1:9200")
+        ver <- uptasticsearch:::.get_es_version(es_host = ES_HOST)
 
         # is a string
-        expect_true(assertthat::is.string(ver), info = paste0("returned version: ", ver))
+        expect_true(.is_string(ver), info = paste0("returned version: ", ver))
 
         # Decided to check that it's coercible to an integer instead of
-        # hard-coding known ES versions so this test won't require
-        # attention or break builds if/when ES7 or whatever the next major verison
+        # hard-coding known Elasticsearch versions so this test won't require
+        # attention or break builds if/when Elasticsearch 7 or whatever the next major version
         # is comes out
         expect_true(!is.na(as.integer(ver)), info = paste0("returned version: ", ver))
     })
@@ -209,17 +209,17 @@ futile.logger::flog.threshold(0)
 
     # set up helper function for manipulating aliases. Valid actions below are
     # "add" and "remove"
-    .alias_action <- function(action, alias_name){
-        res <- httr::POST(
-            url = "http://127.0.0.1:9200/_aliases"
-            , httr::add_headers(c('Content-Type' = 'application/json'))
+    .alias_action <- function(action, alias_name) {
+        res <- .request(
+            verb = "POST"
+            , url = "http://127.0.0.1:9200/_aliases"
             , body = sprintf(
-                '{"actions": [{"%s": {"index": "shakespeare", "alias": "%s"}}]}'
+                '{"actions": [{"%s": {"index": "shakespeare", "alias": "%s"}}]}'  # nolint[quotes]
                 , action
                 , alias_name
             )
         )
-        httr::stop_for_status(res)
+        .stop_for_status(res)
         return(invisible(NULL))
     }
 
@@ -227,16 +227,16 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         result <- .get_aliases(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
         )
         expect_null(result)
     })
 
-    test_that("get_fields works on an actual running ES cluster with no aliases", {
+    test_that("get_fields works on an actual running Elasticsearch cluster with no aliases", {
         testthat::skip_on_cran()
 
         fieldDT <- get_fields(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_indices = "_all"
         )
         expect_true(data.table::is.data.table(fieldDT))
@@ -277,7 +277,7 @@ futile.logger::flog.threshold(0)
 
         # get_fields should work
         fieldDT <- get_fields(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_indices = "_all"
         )
 
@@ -315,9 +315,9 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         # create an alias
-        .alias_action('add', 'the_test_alias')
-        .alias_action('add', 'the_best_alias')
-        .alias_action('add', 'the_nest_alias')
+        .alias_action("add", "the_test_alias")
+        .alias_action("add", "the_best_alias")
+        .alias_action("add", "the_nest_alias")
 
         # get_aliases should work
         resultDT <- .get_aliases("http://127.0.0.1:9200")
@@ -334,10 +334,10 @@ futile.logger::flog.threshold(0)
 
         # get_fields should work for "_all" indices
         # NOTE: this was deprecated in Elasticsearch 6 and removed in
-        #       ES7, but we use it here so that old uptasticsearch code
+        #       Elasticsearch 7, but we use it here so that old uptasticsearch code
         #       continues to work
         fieldDT <- get_fields(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_indices = "_all"
         )
 
@@ -364,17 +364,17 @@ futile.logger::flog.threshold(0)
 
         # since we aliased the same index three times, the subsections should all be identical
         expect_true(identical(
-            fieldDT[index == 'the_best_alias', .(type, field, data_type)]
-            , fieldDT[index == 'the_nest_alias', .(type, field, data_type)]
+            fieldDT[index == "the_best_alias", .(type, field, data_type)]
+            , fieldDT[index == "the_nest_alias", .(type, field, data_type)]
         ))
         expect_true(identical(
-            fieldDT[index == 'the_best_alias', .(type, field, data_type)]
-            , fieldDT[index == 'the_test_alias', .(type, field, data_type)]
+            fieldDT[index == "the_best_alias", .(type, field, data_type)]
+            , fieldDT[index == "the_test_alias", .(type, field, data_type)]
         ))
 
         # get_fields should work targeting a specific index with aliases
         fieldDT <- get_fields(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_indices = "shakespeare"
         )
 
@@ -401,18 +401,18 @@ futile.logger::flog.threshold(0)
 
         # since we aliased the same index three times, the subsections should all be identical
         expect_true(identical(
-            fieldDT[index == 'the_best_alias', .(type, field, data_type)]
-            , fieldDT[index == 'the_nest_alias', .(type, field, data_type)]
+            fieldDT[index == "the_best_alias", .(type, field, data_type)]
+            , fieldDT[index == "the_nest_alias", .(type, field, data_type)]
         ))
         expect_true(identical(
-            fieldDT[index == 'the_best_alias', .(type, field, data_type)]
-            , fieldDT[index == 'the_test_alias', .(type, field, data_type)]
+            fieldDT[index == "the_best_alias", .(type, field, data_type)]
+            , fieldDT[index == "the_test_alias", .(type, field, data_type)]
         ))
 
         # delete the aliases we created (to keep tests self-contained)
-        .alias_action('remove', 'the_test_alias')
-        .alias_action('remove', 'the_best_alias')
-        .alias_action('remove', 'the_nest_alias')
+        .alias_action("remove", "the_test_alias")
+        .alias_action("remove", "the_best_alias")
+        .alias_action("remove", "the_nest_alias")
 
         # confirm that they're gone
         resultDT <- .get_aliases("http://127.0.0.1:9200")
@@ -424,7 +424,7 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         fieldDT <- get_fields(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_indices = "empty_index"
         )
         expect_true(data.table::is.data.table(fieldDT))
@@ -451,7 +451,7 @@ futile.logger::flog.threshold(0)
         testthat::skip_on_cran()
 
         fieldDT <- get_fields(
-            es_host = "http://127.0.0.1:9200"
+            es_host = ES_HOST
             , es_indices = c("empty_index", "shakespeare")
         )
         expect_true(data.table::is.data.table(fieldDT))
@@ -473,6 +473,80 @@ futile.logger::flog.threshold(0)
         expect_true(fieldDT[, length(unique(index))] >= 2)
     })
 
+#--- HTTP request helpers
+test_that(".request() works for requests without a body", {
+    testthat::skip_on_cran()
+    response <- uptasticsearch:::.request(
+        verb = "POST"
+        , url = "https://httpbin.org/status/201"
+        , body = NULL
+    )
+    expect_true(response$method == "POST")
+    expect_true(response$status_code == 201L)
+    expect_true(response$url == "https://httpbin.org/status/201")
+})
+
+test_that(".request() works for requests with a body", {
+    testthat::skip_on_cran()
+    response <- uptasticsearch:::.request(
+        verb = "POST"
+        , url = "https://httpbin.org/anything"
+        , body = '{"data": {"cool_numbers": [312, 708, 773]}}'
+    )
+    expect_true(response$method == "POST")
+    expect_true(response$status_code == 200L)
+    expect_true(response$url == "https://httpbin.org/anything")
+    response_content <- jsonlite::fromJSON(rawToChar(response$content))
+    expect_true(identical(response_content[["json"]][["data"]][["cool_numbers"]], c(312L, 708L, 773L)))
+})
+
+test_that("retry logic works as expected", {
+    testthat::skip_on_cran()
+    futile.logger::flog.threshold(futile.logger::DEBUG)
+    log_lines <- testthat::capture_output({
+        response <- .request(
+            verb = "GET"
+            , url = "https://httpbin.org/status/502"
+            , body = NULL
+        )
+    })
+    futile.logger::flog.threshold(0)
+
+    # should log the failures and sleep times
+    expect_true(grepl("DEBUG.*Request failed.*status code 502.*Sleeping for", log_lines))
+
+    # should perform retry with backoff
+    expect_true(grepl(".*Sleeping for 1\\.[0-9]+ seconds.*Sleeping for 2\\.[0-9]+ seconds", log_lines))
+
+    # should return the response
+    expect_true(response$method == "GET")
+    expect_true(response$status_code == 502L)
+    expect_true(response$url == "https://httpbin.org/status/502")
+})
+
+test_that("retry logic works as expected for requests with a body", {
+    testthat::skip_on_cran()
+    futile.logger::flog.threshold(futile.logger::DEBUG)
+    log_lines <- testthat::capture_output({
+        response <- .request(
+            verb = "POST"
+            , url = "https://httpbin.org/status/429"
+            , body = '{"some_key": 708}'
+        )
+    })
+    futile.logger::flog.threshold(0)
+
+    # should log the failures and sleep times
+    expect_true(grepl("DEBUG.*Request failed.*status code 429.*Sleeping for", log_lines))
+
+    # should perform retry with backoff
+    expect_true(grepl(".*Sleeping for 1\\.[0-9]+ seconds.*Sleeping for 2\\.[0-9]+ seconds", log_lines))
+
+    # should return the response
+    expect_true(response$method == "POST")
+    expect_true(response$status_code == 429L)
+    expect_true(response$url == "https://httpbin.org/status/429")
+})
+
 ##### TEST TEAR DOWN #####
 futile.logger::flog.threshold(origLogThreshold)
-rm(list = ls())

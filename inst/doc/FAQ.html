@@ -1,291 +1,130 @@
 <!DOCTYPE html>
-
-<html xmlns="http://www.w3.org/1999/xhtml">
-
+<html>
 <head>
-
-<meta charset="utf-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="pandoc" />
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<meta name="author" content="Stephanie Kirmer" />
-
-<meta name="date" content="2019-09-11" />
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 <title>Frequently Asked Questions</title>
-
-
-
-
-
-
-<style type="text/css">body {
-background-color: #fff;
-margin: 1em auto;
-max-width: 700px;
-overflow: visible;
-padding-left: 2em;
-padding-right: 2em;
-font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
-font-size: 14px;
-line-height: 1.35;
+<style type="text/css">
+body {
+  font-family: sans-serif;
+  max-width: 800px;
+  margin: auto;
+  padding: 1em;
+  line-height: 1.5;
+  box-sizing: border-box;
 }
-#header {
-text-align: center;
+body, .footnotes, code { font-size: .9em; }
+li li { font-size: .95em; }
+*, *:before, *:after {
+  box-sizing: inherit;
 }
-#TOC {
-clear: both;
-margin: 0 0 10px 10px;
-padding: 4px;
-width: 400px;
-border: 1px solid #CCCCCC;
-border-radius: 5px;
-background-color: #f6f6f6;
-font-size: 13px;
-line-height: 1.3;
+pre, img { max-width: 100%; }
+pre, pre:hover {
+  white-space: pre-wrap;
+  word-break: break-all;
 }
-#TOC .toctitle {
-font-weight: bold;
-font-size: 15px;
-margin-left: 5px;
+pre code {
+  display: block;
+  overflow-x: auto;
 }
-#TOC ul {
-padding-left: 40px;
-margin-left: -1.5em;
-margin-top: 5px;
-margin-bottom: 5px;
-}
-#TOC ul ul {
-margin-left: -2em;
-}
-#TOC li {
-line-height: 16px;
+code { font-family: 'DejaVu Sans Mono', 'Droid Sans Mono', 'Lucida Console', Consolas, Monaco, monospace; }
+:not(pre) > code, code[class] { background-color: #F8F8F8; }
+code.language-undefined, pre > code:not([class]) {
+  background-color: inherit;
+  border: 1px solid #eee;
 }
 table {
-margin: 1em auto;
-border-width: 1px;
-border-color: #DDDDDD;
-border-style: outset;
-border-collapse: collapse;
+  margin: auto;
+  border-top: 1px solid #666;
 }
-table th {
-border-width: 2px;
-padding: 5px;
-border-style: inset;
-}
-table td {
-border-width: 1px;
-border-style: inset;
-line-height: 18px;
-padding: 5px 5px;
-}
-table, table th, table td {
-border-left-style: none;
-border-right-style: none;
-}
-table thead, table tr.even {
-background-color: #f7f7f7;
-}
-p {
-margin: 0.5em 0;
-}
+table thead th { border-bottom: 1px solid #ddd; }
+th, td { padding: 5px; }
+thead, tfoot, tr:nth-child(even) { background: #eee; }
 blockquote {
-background-color: #f6f6f6;
-padding: 0.25em 0.75em;
+  color: #666;
+  margin: 0;
+  padding-left: 1em;
+  border-left: 0.5em solid #eee;
 }
-hr {
-border-style: solid;
-border: none;
-border-top: 1px solid #777;
-margin: 28px 0;
+hr, .footnotes::before { border: 1px dashed #ddd; }
+.frontmatter { text-align: center; }
+#TOC .numbered li { list-style: none; }
+#TOC .numbered { padding-left: 0; }
+#TOC .numbered ul { padding-left: 1em; }
+table, .body h2 { border-bottom: 1px solid #666; }
+.body .appendix, .appendix ~ h2 { border-bottom-style: dashed; }
+.footnote-ref a::before { content: "["; }
+.footnote-ref a::after { content: "]"; }
+section.footnotes::before {
+  content: "";
+  display: block;
+  max-width: 20em;
 }
-dl {
-margin-left: 0;
-}
-dl dd {
-margin-bottom: 13px;
-margin-left: 13px;
-}
-dl dt {
-font-weight: bold;
-}
-ul {
-margin-top: 0;
-}
-ul li {
-list-style: circle outside;
-}
-ul ul {
-margin-bottom: 0;
-}
-pre, code {
-background-color: #f7f7f7;
-border-radius: 3px;
-color: #333;
-white-space: pre-wrap; 
-}
-pre {
-border-radius: 3px;
-margin: 5px 0px 10px 0px;
-padding: 10px;
-}
-pre:not([class]) {
-background-color: #f7f7f7;
-}
-code {
-font-family: Consolas, Monaco, 'Courier New', monospace;
-font-size: 85%;
-}
-p > code, li > code {
-padding: 2px 0px;
-}
-div.figure {
-text-align: center;
-}
-img {
-background-color: #FFFFFF;
-padding: 2px;
-border: 1px solid #DDDDDD;
-border-radius: 3px;
-border: 1px solid #CCCCCC;
-margin: 0 5px;
-}
-h1 {
-margin-top: 0;
-font-size: 35px;
-line-height: 40px;
-}
-h2 {
-border-bottom: 4px solid #f7f7f7;
-padding-top: 10px;
-padding-bottom: 2px;
-font-size: 145%;
-}
-h3 {
-border-bottom: 2px solid #f7f7f7;
-padding-top: 10px;
-font-size: 120%;
-}
-h4 {
-border-bottom: 1px solid #f7f7f7;
-margin-left: 8px;
-font-size: 105%;
-}
-h5, h6 {
-border-bottom: 1px solid #ccc;
-font-size: 105%;
-}
-a {
-color: #0033dd;
-text-decoration: none;
-}
-a:hover {
-color: #6666ff; }
-a:visited {
-color: #800080; }
-a:visited:hover {
-color: #BB00BB; }
-a[href^="http:"] {
-text-decoration: underline; }
-a[href^="https:"] {
-text-decoration: underline; }
 
-code > span.kw { color: #555; font-weight: bold; } 
-code > span.dt { color: #902000; } 
-code > span.dv { color: #40a070; } 
-code > span.bn { color: #d14; } 
-code > span.fl { color: #d14; } 
-code > span.ch { color: #d14; } 
-code > span.st { color: #d14; } 
-code > span.co { color: #888888; font-style: italic; } 
-code > span.ot { color: #007020; } 
-code > span.al { color: #ff0000; font-weight: bold; } 
-code > span.fu { color: #900; font-weight: bold; }  code > span.er { color: #a61717; background-color: #e3d2d2; } 
+@media print {
+  body {
+    font-size: 12pt;
+    max-width: 100%;
+  }
+  tr, img { page-break-inside: avoid; }
+}
+@media only screen and (min-width: 992px) {
+  pre { white-space: pre; }
+}
 </style>
-
-
-
-
 </head>
-
 <body>
-
-
-
-
-<h1 class="title toc-ignore">Frequently Asked Questions</h1>
-<h4 class="author">Stephanie Kirmer</h4>
-<h4 class="date">2019-09-11</h4>
-
-
+<div class="frontmatter">
+<div class="title"><h1>Frequently Asked Questions</h1></div>
+<div class="author"><h2>Stephanie Kirmer</h2></div>
+<div class="date"><h3>2025-02-24</h3></div>
+</div>
+<div class="body">
 <div id="TOC">
+<ul class="numbered">
+<li><a href="#introduction"><span class="section-number">1.</span> Introduction</a></li>
+<li><a href="#questions"><span class="section-number">2.</span> Questions</a>
 <ul>
-<li><a href="#introduction">Introduction</a></li>
-<li><a href="#questions">Questions</a><ul>
-<li><a href="#query-syntax-problems">Query Syntax Problems</a></li>
-<li><a href="#query-returns-no-results">Query Returns No Results</a></li>
-</ul></li>
-<li><a href="#contribute-to-this-guide">Contribute to this Guide!</a></li>
+<li><a href="#query-syntax-problems"><span class="section-number">2.1</span> Query Syntax Problems</a>
+<ul>
+<li><a href="#troubleshooting-guide_1"><span class="section-number">2.1.1</span> Troubleshooting Guide</a></li>
+</ul>
+</li>
+<li><a href="#query-returns-no-results"><span class="section-number">2.2</span> Query Returns No Results</a>
+<ul>
+<li><a href="#troubleshooting-guide_2"><span class="section-number">2.2.1</span> Troubleshooting Guide</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#contribute-to-this-guide"><span class="section-number">3.</span> Contribute to this Guide!</a></li>
 </ul>
 </div>
-
-<div id="introduction" class="section level1">
-<h1>Introduction</h1>
+<h1 id="introduction"><span class="section-number">1.</span> Introduction</h1>
 <p>Welcome to uptasticsearch! This package exists to help R users connect to elasticsearch databases smoothly and easily. However, sometimes things go wrong! This FAQ is an ongoing project to catalog common errors and questions people have about this system, and provide simple and useful answers.</p>
 <p>If your question is not presented here, and google doesn’t help, go ahead and post an issue on github so somebody can help you.</p>
 <hr />
-</div>
-<div id="questions" class="section level1">
-<h1>Questions</h1>
-<div id="query-syntax-problems" class="section level2">
-<h2>Query Syntax Problems</h2>
+<h1 id="questions"><span class="section-number">2.</span> Questions</h1>
+<h2 id="query-syntax-problems"><span class="section-number">2.1</span> Query Syntax Problems</h2>
 <p>Developing queries of your own for elasticsearch is sometimes tough. If you are finding that the queries you write are not valid, there may be many reasons. You are probably in this situation if your error is <code>Bad Request (HTTP 400)</code> or similar.</p>
-<div id="troubleshooting-guide" class="section level3">
-<h3>Troubleshooting Guide</h3>
+<h3 id="troubleshooting-guide_1"><span class="section-number">2.1.1</span> Troubleshooting Guide</h3>
 <ul>
-<li>Are all your <strong>brackets and curly braces</strong> correct and paired? Check just to make sure.<br />
-</li>
+<li>Are all your <strong>brackets and curly braces</strong> correct and paired? Check just to make sure.</li>
 <li>Are you <strong>quoting</strong> things correctly? This syntax calls for an awful lot of quotation marks, don’t forget them.</li>
 </ul>
-</div>
-</div>
-<div id="query-returns-no-results" class="section level2">
-<h2>Query Returns No Results</h2>
+<h2 id="query-returns-no-results"><span class="section-number">2.2</span> Query Returns No Results</h2>
 <p>After you have verified with certainty that your query is appropriately structured and written, you might still have challenges. What to do if you get the error <code>Query is syntactically valid but 0 documents were matched. Returning NULL</code> ?</p>
-<div id="troubleshooting-guide-1" class="section level3">
-<h3>Troubleshooting Guide</h3>
+<h3 id="troubleshooting-guide_2"><span class="section-number">2.2.1</span> Troubleshooting Guide</h3>
 <ul>
-<li>Are your <strong>search terms</strong> named and described correctly? All spelled right?<br />
-</li>
-<li>Are you looking in the <strong>correct index</strong>? Perhaps your document is in a different one.<br />
-</li>
+<li>Are your <strong>search terms</strong> named and described correctly? All spelled right?</li>
+<li>Are you looking in the <strong>correct index</strong>? Perhaps your document is in a different one.</li>
 <li>If you are passing <strong>dates or datetimes</strong>, are the formats of your input formatted just right?</li>
-<li>IMPORTANT: <strong>Are the terms you are using indexed</strong>? This is a tricky one. Your term may exist and have data in the documents, but if your particular elasticsearch database has not indexed that term, you won’t be able to use it for searching. This does not mean that the document/s aren’t there, but just that you can’t use that term for searching.<br />
-</li>
+<li>IMPORTANT: <strong>Are the terms you are using indexed</strong>? This is a tricky one. Your term may exist and have data in the documents, but if your particular elasticsearch database has not indexed that term, you won’t be able to use it for searching. This does not mean that the document/s aren’t there, but just that you can’t use that term for searching.</li>
 <li>Are you sure the <strong>document exists</strong>? It might just not be there.</li>
 </ul>
 <hr />
-</div>
-</div>
-</div>
-<div id="contribute-to-this-guide" class="section level1">
-<h1>Contribute to this Guide!</h1>
+<h1 id="contribute-to-this-guide"><span class="section-number">3.</span> Contribute to this Guide!</h1>
 <p>We are always happy to get more questions and answers to add to this guide. If you have a tricky issue that you have figured out the solution to, please submit a PR on github and add it to this guide.</p>
 </div>
-
-
-
-<!-- dynamically load mathjax for compatibility with self-contained -->
-<script>
-  (function () {
-    var script = document.createElement("script");
-    script.type = "text/javascript";
-    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
-    document.getElementsByTagName("head")[0].appendChild(script);
-  })();
-</script>
-
 </body>
 </html>

@@ -41,16 +41,16 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
     # If nothing was passed to hits_json, return NULL and warn
     if (is.null(hits_json)) {
         msg <- "You did not pass any input data to chomp_hits. Returning NULL."
-        log_warn(msg)
+        .log_warn(msg)
         return(invisible(NULL))
     }
 
-    if (!("character" %in% class(hits_json))) {
+    if (!is.character(hits_json)) {
         msg <- paste0("The first argument of chomp_hits must be a character vector."
                       , "You may have passed an R list. In that case, if you already "
                       , "used jsonlite::fromJSON(), you can just call "
                       , "data.table::as.data.table().")
-        log_fatal(msg)
+        .log_fatal(msg)
     }
 
     # Parse the input JSON to a list object
@@ -65,23 +65,25 @@ chomp_hits <- function(hits_json = NULL, keep_nested_data_cols = TRUE) {
     }
 
     # Strip "_source" from all the column names because blegh
-    data.table::setnames(batchDT, gsub("_source\\.", "", names(batchDT)))
+    data.table::setnames(batchDT, gsub("_source.", "", names(batchDT), fixed = TRUE))
 
     # Warn the user if there's nested data
     colTypes <- sapply(batchDT, mode)
     if (any(colTypes == "list")) {
         if (keep_nested_data_cols) {
-            msg <- paste("Keeping the following nested data columns."
-                         , "Consider using unpack_nested_data for one:\n"
-                         , paste(names(colTypes)[colTypes == "list"]
-                                 , collapse = ", "))
-            log_info(msg)
+            msg <- paste(
+                "Keeping the following nested data columns."
+                , "Consider using unpack_nested_data for one:\n"
+                , toString(names(colTypes)[colTypes == "list"])
+            )
+            .log_info(msg)
         } else {
 
-            msg <- paste("Deleting the following nested data columns:\n"
-                         , paste(names(colTypes)[colTypes == "list"]
-                                 , collapse = ", "))
-            log_warn(msg)
+            msg <- paste(
+                "Deleting the following nested data columns:\n"
+                , toString(names(colTypes)[colTypes == "list"])
+            )
+            .log_warn(msg)
             batchDT <- batchDT[, !names(colTypes[colTypes == "list"]), with = FALSE]
         }
     }

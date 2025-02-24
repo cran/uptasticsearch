@@ -7,14 +7,13 @@
 #'
 #'              This is a side-effect-free function: it returns a new data.table and the
 #'              input data.table is unmodified.
-#' @importFrom assertthat is.string
-#' @importFrom data.table copy
+#' @importFrom data.table copy is.data.table
 #' @importFrom purrr map2 simplify
 #' @importFrom stringr str_extract
 #' @export
 #' @param input_df a data.table with one or more date-time columns you want to convert
 #' @param date_cols Character vector of column names to convert. Columns should have
-#'                string dates of the form "2016-07-25T22:15:19Z".
+#'                  string dates of the form "2016-07-25T22:15:19Z".
 #' @param assume_tz Timezone to convert to if parsing fails. Default is UTC
 #' @references \url{https://www.timeanddate.com/time/zones/military}
 #' @references \url{https://en.wikipedia.org/wiki/List_of_tz_database_time_zones}
@@ -37,39 +36,36 @@
 parse_date_time <- function(input_df
                             , date_cols
                             , assume_tz = "UTC"
-){
+) {
 
     # Break if input_df isn't actually a data.table
-    if (!any(class(input_df) %in% "data.table")){
+    if (!data.table::is.data.table(input_df)) {
         msg <- paste("parse_date_time expects to receive a data.table object."
                      , "You provided an object of class"
-                     , paste(class(input_df), collapse = ", ")
+                     , toString(class(input_df))
                      , "to input_df.")
-        log_fatal(msg)
+        .log_fatal(msg)
     }
 
     # Break if date_cols is not a character vector
     if (!identical(class(date_cols), "character")) {
         msg <- paste("The date_cols argument in parse_date_time expects",
                      "a character vector of column names. You gave an object",
-                     "of class", paste(class(date_cols), collapse = ", "))
-        log_fatal(msg)
+                     "of class", toString(class(date_cols)))
+        .log_fatal(msg)
     }
 
     # Break if any of the date_cols are not actually in this DT
-    if (!all(date_cols %in% names(input_df))){
+    if (!all(date_cols %in% names(input_df))) {
         not_there <- date_cols[!(date_cols %in% names(input_df))]
         msg <- paste("The following columns, which you passed to date_cols,",
                      "do not actually exist in input_df:",
-                     paste(not_there, collapse = ", "))
-        log_fatal(msg)
+                     toString(not_there))
+        .log_fatal(msg)
     }
 
     # Other input checks we don't have explicit error messages for
-    .assert(
-        assertthat::is.string(assume_tz)
-        , assume_tz != ""
-    )
+    .assert(.is_string(assume_tz), "Argument 'assume_tz' must be a non-empty string")
 
     # Work on a copy of the DT to avoid side effects
     outDT <- data.table::copy(input_df)
@@ -78,6 +74,7 @@ parse_date_time <- function(input_df
     # Military (one-letter) times:
     # Mapping UTC to etc --> https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     tzHash <- vector("character")
+    # nolint start
     tzHash["A"] <-  "Etc/GMT-1" # UTC +1
     tzHash["B"] <-  "Etc/GMT-2" # UTC +2
     tzHash["C"] <-  "Etc/GMT-3" # UTC +3
@@ -103,16 +100,20 @@ parse_date_time <- function(input_df
     tzHash["X"] <-  "Etc/GMT+11" # UTC -11
     tzHash["Y"] <-  "Etc/GMT+12" # UTC -12
     tzHash["Z"] <-  "UTC" # UTC
+    # nolint end
 
     # Parse dates, return POSIXct UTC dates
-    for (dateCol in date_cols){
+    for (dateCol in date_cols) {
 
         # Grab this vector to work on
         dateVec <- outDT[[dateCol]]
 
         # Parse out timestamps and military timezone strings
-        dateTimes <- paste0(stringr::str_extract(dateVec, "^\\d{4}-\\d{2}-\\d{2}"), " ",
-                            stringr::str_extract(dateVec, "\\d{2}:\\d{2}:\\d{2}"))
+        dateTimes <- paste0(
+            stringr::str_extract(dateVec, "^\\d{4}-\\d{2}-\\d{2}")  # nolint[non_portable_path]
+            , " "
+            , stringr::str_extract(dateVec, "\\d{2}:\\d{2}:\\d{2}")
+        )
         tzKeys <- stringr::str_extract(dateVec, "[A-Za-z]{1}$")
 
         # Grab a vector of timezones
@@ -123,7 +124,9 @@ parse_date_time <- function(input_df
         dateTimes <- purrr::map2(
             dateTimes
             , timeZones
-            , function(dateTime, timeZone){as.POSIXct(dateTime, tz = timeZone)}
+            , function(dateTime, timeZone) {
+                return(as.POSIXct(dateTime, tz = timeZone))
+            }
         )
 
         utcDates <- as.POSIXct.numeric(

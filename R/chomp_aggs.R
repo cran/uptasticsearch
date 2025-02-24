@@ -6,8 +6,8 @@
 #' @importFrom data.table as.data.table setnames setcolorder
 #' @export
 #' @param aggs_json A character vector. If its length is greater than 1, its elements will be pasted
-#'        together. This can contain a JSON returned from an \code{aggs} query in Elasticsearch, or
-#'        a filepath or URL pointing at one.
+#'                  together. This can contain a JSON returned from an \code{aggs} query in
+#'                  Elasticsearch, or a filepath or URL pointing at one.
 #' @examples
 #' # A sample raw result from an aggs query combining date_histogram and extended_stats:
 #' result <- '{"aggregations":{"dateTime":{"buckets":[{"key_as_string":"2016-12-01T00:00:00.000Z",
@@ -27,14 +27,14 @@ chomp_aggs <- function(aggs_json = NULL) {
     # If nothing was passed to aggs_json, return NULL and warn
     if (is.null(aggs_json)) {
         msg <- "You did not pass any input data to chomp_aggs. Returning NULL."
-        log_warn(msg)
+        .log_warn(msg)
         return(invisible(NULL))
     }
 
-    if (!("character" %in% class(aggs_json))) {
+    if (!is.character(aggs_json)) {
         msg <- paste0("The first argument of chomp_aggs must be a character vector."
                       , "You may have passed an R list. Try querying with uptasticsearch:::.search_request()")
-        log_fatal(msg)
+        .log_fatal(msg)
     }
 
     # Parse the input JSON to a list object
@@ -42,22 +42,22 @@ chomp_aggs <- function(aggs_json = NULL) {
 
     # Get first agg name
     aggNames <- names(jsonList[["aggregations"]])
-    assertthat::assert_that(
-        assertthat::is.string(aggNames)
+    .assert(
+        .is_string(aggNames)
         , msg = "aggregations are expected to have a single user-assigned name. This is a malformed aggregations response."
     )
 
     # Gross special-case handler for one-level extended_stats aggregation
-    if (.IsExtendedStatsAgg(jsonList[["aggregations"]][[aggNames]])){
-        log_info("es_search is assuming that this result is a one-level 'extended_stats' result.")
+    if (.IsExtendedStatsAgg(jsonList[["aggregations"]][[aggNames]])) {
+        .log_info("es_search is assuming that this result is a one-level 'extended_stats' result.")
         jsonList[["aggregations"]][[1]][["std_deviation_bounds.upper"]] <- jsonList[["aggregations"]][[1]][["std_deviation_bounds"]][["upper"]]
         jsonList[["aggregations"]][[1]][["std_deviation_bounds.lower"]] <- jsonList[["aggregations"]][[1]][["std_deviation_bounds"]][["lower"]]
         jsonList[["aggregations"]][[1]][["std_deviation_bounds"]] <- NULL
     }
 
     # Gross special-case handler for one-level percentiles aggregation
-    if (.IsPercentilesAgg(jsonList[["aggregations"]][[aggNames]])){
-        log_info("es_search is assuming that this result is a one-level 'percentiles' result.")
+    if (.IsPercentilesAgg(jsonList[["aggregations"]][[aggNames]])) {
+        .log_info("es_search is assuming that this result is a one-level 'percentiles' result.")
 
         # Replace names like `25.0` with something that will be easier for users to understand
         # Doing this changes column names like thing.values.25.0 to thing.percentile_25.0
@@ -66,18 +66,18 @@ chomp_aggs <- function(aggs_json = NULL) {
         jsonList[["aggregations"]][[aggNames]] <- percValues
     }
 
-    if (.IsSigTermsAgg(jsonList[["aggregations"]][[aggNames]])){
-        log_info("es_search is assuming that this result is a one-level 'significant terms' result.")
+    if (.IsSigTermsAgg(jsonList[["aggregations"]][[aggNames]])) {
+        .log_info("es_search is assuming that this result is a one-level 'significant terms' result.")
 
         # We can grab that nested data.frame and break out right now
         outDT <- data.table::as.data.table(jsonList[["aggregations"]][[aggNames]][["buckets"]])
-        data.table::setnames(outDT, 'key', aggNames)
+        data.table::setnames(outDT, "key", aggNames)
         return(outDT)
     }
 
     # check for an empty result
-    if (identical(jsonList[["aggregations"]][[aggNames]][["buckets"]], list())){
-        log_info("this aggregation result was empty. Returning NULL")
+    if (identical(jsonList[["aggregations"]][[aggNames]][["buckets"]], list())) {
+        .log_info("this aggregation result was empty. Returning NULL")
         return(invisible(NULL))
     }
 
@@ -85,7 +85,7 @@ chomp_aggs <- function(aggs_json = NULL) {
     outDT <- data.table::as.data.table(jsonList[["aggregations"]][[aggNames]])
 
     # Keep unpacking the nested arrays until you hit 'break'
-    while(TRUE) {
+    while (TRUE) {
         # Clean up the column names
         .clean_aggs_colnames(outDT)
 
@@ -96,7 +96,7 @@ chomp_aggs <- function(aggs_json = NULL) {
         } else {
 
             # Other bucketed aggregations (not date_histogram) will have "key"
-            if ("key" %in% names(outDT)){
+            if ("key" %in% names(outDT)) {
                 data.table::setnames(outDT, "key", aggNames[length(aggNames)])
             } else {
                 # If we get down here, we know it's not a bucketed aggregation
@@ -114,8 +114,8 @@ chomp_aggs <- function(aggs_json = NULL) {
             aggNames[length(aggNames) + 1] <- names(colTypes[colTypes == "list"])
 
             # Remove unwanted columns
-            badCols <- grep("doc_count", names(outDT))
-            if (length(badCols) > 0){
+            badCols <- grep("doc_count", names(outDT), fixed = TRUE)
+            if (length(badCols) > 0) {
                 outDT <- outDT[, !badCols, with = FALSE]
             }
 
@@ -124,7 +124,7 @@ chomp_aggs <- function(aggs_json = NULL) {
 
         } else {
             # Remove unwanted columns, but keep doc_count
-            badCols <- base::setdiff(grep("doc_count", names(outDT), value = TRUE), "doc_count")
+            badCols <- base::setdiff(grep("doc_count", names(outDT), value = TRUE, fixed = TRUE), "doc_count")
             if (length(badCols) > 0) {
                 outDT <- outDT[, !badCols, with = FALSE]
             }
@@ -135,7 +135,7 @@ chomp_aggs <- function(aggs_json = NULL) {
     # Re-set the column order to mirror the way the user specified their aggs query
     # NOTE: If there's no "doc_count" in the names, we know that this was not a bucketed
     # / nested query and reordering is unnecessary
-    if ("doc_count" %in% names(outDT)){
+    if ("doc_count" %in% names(outDT)) {
         data.table::setcolorder(
             outDT,
             c(aggNames, base::setdiff(names(outDT), c(aggNames, "doc_count")), "doc_count")
@@ -150,7 +150,7 @@ chomp_aggs <- function(aggs_json = NULL) {
 # Used in chomp_aggs. Call this by reference, not assignment.
 #' @importFrom data.table setnames
 .clean_aggs_colnames <- function(DT) {
-    old <- grep("buckets", names(DT), value = TRUE)
+    old <- grep("buckets", names(DT), value = TRUE, fixed = TRUE)
     new <- gsub("\\.?buckets\\.?", "", old)
     data.table::setnames(DT, old, new)
 }
@@ -160,7 +160,7 @@ chomp_aggs <- function(aggs_json = NULL) {
 #               "extended_stats" aggregation. data.table doesn't handle those
 #               in a way that's consistent with the way this package handles all other aggregations
 # [param] aggsList R list-object representation of an "aggs" result from Elasticsearch
-.IsExtendedStatsAgg <- function(aggsList){
+.IsExtendedStatsAgg <- function(aggsList) {
     statsNames <- c("count", "min", "max", "avg", "sum", "sum_of_squares"
                     , "variance", "std_deviation", "std_deviation_bounds")
 
@@ -172,16 +172,24 @@ chomp_aggs <- function(aggs_json = NULL) {
 #               "Percentiles" aggregation. data.table doesn't handle those
 #               in a way that's consistent with the way this package handles all other aggregations
 # [param] aggsList R list-object representation of an "aggs" result from Elasticsearch
-.IsPercentilesAgg <- function(aggsList){
+.IsPercentilesAgg <- function(aggsList) {
 
     # check 1 - has a single element called "values"
-    if (! identical("values", names(aggsList))){
+    if (! identical("values", names(aggsList))) {
         return(FALSE)
     }
 
     # check 2 - all names of "values" are convertible to numbers
-    numNames <- as.numeric(names(aggsList[["values"]]))
-    if (all(vapply(numNames, function(val){!is.na(val)}, FUN.VALUE = TRUE))){
+    all_convertible <- all(
+        vapply(
+            X = as.numeric(names(aggsList[["values"]]))
+            , FUN = function(val) {  # nolint[unnecessary_lambda]
+                return(!is.na(val))
+            }
+            , FUN.VALUE = TRUE
+        )
+    )
+    if (all_convertible) {
         return(TRUE)
     } else {
         return(FALSE)
@@ -194,20 +202,20 @@ chomp_aggs <- function(aggs_json = NULL) {
 #               "significant terms" aggregation. data.table doesn't handle those
 #               in a way that's consistent with the way this package handles all other aggregations
 # [param] aggsList R list-object representation of an "aggs" result from Elasticsearch
-.IsSigTermsAgg <- function(aggsList){
+.IsSigTermsAgg <- function(aggsList) {
 
     # check 1 - has exactly two keys - "doc_count", "buckets"
-    if (! identical(sort(names(aggsList)), c('buckets', 'doc_count'))){
+    if (! identical(sort(names(aggsList)), c("buckets", "doc_count"))) {
         return(FALSE)
     }
 
     # check 2 - "buckets" is a data.frame
-    if (!"data.frame" %in% class(aggsList[['buckets']])){
+    if (!is.data.frame(aggsList[["buckets"]])) {
         return(FALSE)
     }
 
     # check 3 - "buckets" has at least the columns "key", "doc_count", and "bg_count"
-    if (!all(c('key', 'doc_count', 'bg_count') %in% names(aggsList[['buckets']]))){
+    if (!all(c("key", "doc_count", "bg_count") %in% names(aggsList[["buckets"]]))) {
         return(FALSE)
     }
 

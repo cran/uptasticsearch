@@ -2,16 +2,23 @@
 % Please edit documentation in R/es_search.R
 \name{es_search}
 \alias{es_search}
-\title{Execute an ES query and get a data.table}
+\title{Execute an Elasticsearch query and get a data.table}
 \usage{
-es_search(es_host, es_index, size = 10000, query_body = "{}",
-  scroll = "5m", max_hits = Inf,
+es_search(
+  es_host,
+  es_index,
+  size = 10000,
+  query_body = "{}",
+  scroll = "5m",
+  max_hits = Inf,
   n_cores = ceiling(parallel::detectCores()/2),
-  break_on_duplicates = TRUE, ignore_scroll_restriction = FALSE,
-  intermediates_dir = getwd())
+  break_on_duplicates = TRUE,
+  ignore_scroll_restriction = FALSE,
+  intermediates_dir = getwd()
+)
 }
 \arguments{
-\item{es_host}{A string identifying an Elasticsearch host. This should be of the form 
+\item{es_host}{A string identifying an Elasticsearch host. This should be of the form
 \code{[transfer_protocol][hostname]:[port]}. For example, \code{'http://myindex.thing.com:9200'}.}
 
 \item{es_index}{The name of an Elasticsearch index to be queried. Note that passing
@@ -21,7 +28,8 @@ To be sure that this very expensive query is not executed by accident,
 uptasticsearch forbids this. If you want to execute a query over
 all indexes in the cluster, set this argument to \code{"_all"}.}
 
-\item{size}{Number of records per page of results. See \href{https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-from-size.html}{Elasticsearch docs} for more.
+\item{size}{Number of records per page of results.
+See \href{https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-body.html#request-body-search-from-size}{Elasticsearch docs} for more.
 Note that this will be reset to 0 if you submit a \code{query_body} with
 an "aggs" request in it. Also see \code{max_hits}.}
 
@@ -32,7 +40,7 @@ duration string like "1m" (for one minute) or "15s" (for 15 seconds).
 The scroll context will be refreshed every time you ask Elasticsearch
 for another record, so this parameter should just be the amount of
 time you expect to pass between requests. See the
-\href{https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html}{Elasticsearch scroll/pagination docs}
+\href{https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-body.html#request-body-search-scroll}{Elasticsearch scroll/pagination docs}
 for more information.}
 
 \item{max_hits}{Integer. If specified, \code{es_search} will stop pulling data as soon
@@ -41,10 +49,11 @@ all possible hits will be pulled.}
 
 \item{n_cores}{Number of cores to distribute fetching and processing over.}
 
-\item{break_on_duplicates}{Boolean, defaults to TRUE. \code{es_search} uses the size of the final object it returns
-to check whether or not some data were lost during the processing.
-If you have duplicates in the source data, you will have to set this flag to
-FALSE and just trust that no data have been lost. Sorry :( .}
+\item{break_on_duplicates}{Boolean, defaults to TRUE. \code{es_search} uses the size of the
+final object it returns to check whether or not some data were lost
+during the processing. If you have duplicates in the source data, you
+will have to set this flag to FALSE and just trust that no data have
+been lost. Sorry :( .}
 
 \item{ignore_scroll_restriction}{There is a cost associated with keeping an
 Elasticsearch scroll context open. By default,
@@ -99,5 +108,5 @@ resultDT <- es_search(es_host = "http://es.custdb.mycompany.com:9200"
 }
 }
 \references{
-\href{https://www.elastic.co/guide/en/elasticsearch/reference/6.x/search-request-scroll.html}{ES 6 scrolling strategy}
+\href{https://www.elastic.co/guide/en/elasticsearch/reference/6.7/search-request-scroll.html}{Elasticsearch 6 scrolling strategy}
 }
