@@ -1,7 +1,7 @@
 Package: uptasticsearch
 Type: Package
 Title: Get Data Frame Representations of 'Elasticsearch' Results
-Version: 1.0.0
+Version: 1.1.0
 Authors@R: c(
     person("James", "Lamb", email = "jaylamb20@gmail.com", role = c("aut", "cre")),
     person("Nick", "Paras", role = c("aut")),
@@ -20,17 +20,16 @@ Description:
     dataset for statistical models. 'uptasticsearch' provides an interface for 'Elasticsearch'
     that is explicitly designed to make these data science workflows easy and fun.
 Depends: R (>= 3.3.0)
-Imports: curl, data.table, futile.logger, jsonlite, purrr, stats,
-        stringr
+Imports: curl, data.table, jsonlite, purrr, stats, stringr
 Suggests: knitr, markdown, testthat
 License: BSD_3_clause + file LICENSE
 URL: https://github.com/uptake/uptasticsearch
 BugReports: https://github.com/uptake/uptasticsearch/issues
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Encoding: UTF-8
 NeedsCompilation: no
-Packaged: 2025-02-24 18:24:57 UTC; jlamb
+Packaged: 2026-01-08 03:51:53 UTC; jlamb
 Author: James Lamb [aut, cre],
   Nick Paras [aut],
   Austin Dickey [aut],
@@ -39,4 +38,4 @@ Author: James Lamb [aut, cre],
   Will Dearden [ctb],
   Uptake Technologies Inc. [cph]
 Repository: CRAN
-Date/Publication: 2025-02-24 18:50:02 UTC
+Date/Publication: 2026-01-08 05:20:02 UTC
